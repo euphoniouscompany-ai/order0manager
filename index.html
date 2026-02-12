@@ -148,52 +148,66 @@
         }
 
         try {
-          const response = await fetch(APPS_SCRIPT_URL + '?action=getConfig');
-          const data = await response.json();
+          // JSONP 방식으로 CORS 우회
+          const callbackName = 'jsonpCallback_' + Date.now();
           
-          if (data.success && data.config) {
-            const config = data.config;
-            
-            // 사람 정보 변환
-            if (config.people && config.people.length > 0) {
-              const newPresets = {};
-              config.people.forEach(person => {
-                newPresets[person.name] = {
-                  name: person.name,
-                  reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
-                  phone: person.phone,
-                  address: person.address,
-                  coupangId: person.coupangId,
-                  naverId: person.naverId,
-                  bank: "신한은행",
-                  account: "110254150254",
-                  accountWithHyphen: "110254-150254"
-                };
-              });
-              setPRESETS(newPresets);
+          await new Promise((resolve, reject) => {
+            window[callbackName] = (data) => {
+              delete window[callbackName];
               
-              // ID 목록도 업데이트
-              const ids = config.people.map(p => p.coupangId).filter(Boolean);
-              if (ids.length > 0) setIDS(ids);
-            }
+              if (data.success && data.config) {
+                const config = data.config;
+                
+                // 사람 정보 변환
+                if (config.people && config.people.length > 0) {
+                  const newPresets = {};
+                  config.people.forEach(person => {
+                    newPresets[person.name] = {
+                      name: person.name,
+                      reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
+                      phone: person.phone,
+                      address: person.address,
+                      coupangId: person.coupangId,
+                      naverId: person.naverId,
+                      bank: "신한은행",
+                      account: "110254150254",
+                      accountWithHyphen: "110254-150254"
+                    };
+                  });
+                  setPRESETS(newPresets);
+                  
+                  const ids = config.people.map(p => p.coupangId).filter(Boolean);
+                  if (ids.length > 0) setIDS(ids);
+                }
+                
+                if (config.sites && config.sites.length > 0) setSITES(config.sites);
+                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
+                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
+                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
+                if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
+                
+                if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
+                  setLearnedMappings(config.labelMappings);
+                  console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
+                }
+                
+                setLoading(false);
+                resolve();
+              } else {
+                reject(new Error(data.error || '설정을 불러올 수 없습니다'));
+              }
+            };
             
-            // 나머지 설정
-            if (config.sites && config.sites.length > 0) setSITES(config.sites);
-            if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-            if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
-            if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
-            if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
+            const script = document.createElement('script');
+            script.src = APPS_SCRIPT_URL + '?action=getConfig&callback=' + callbackName;
+            script.onerror = () => reject(new Error('Script load failed'));
+            document.body.appendChild(script);
             
-            // 라벨 학습 데이터 불러오기
-            if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
-              setLearnedMappings(config.labelMappings);
-              console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
-            }
-            
-            setLoading(false);
-          } else {
-            throw new Error(data.error || '설정을 불러올 수 없습니다');
-          }
+            setTimeout(() => {
+              document.body.removeChild(script);
+            }, 5000);
+          });
+          
         } catch (error) {
           console.error('설정 로딩 오류:', error);
           setConfigError('⚠️ review-setting 시트를 불러올 수 없습니다. 기본값을 사용합니다.');
