@@ -2069,8 +2069,33 @@ ${order.price}`;
                           flex: 1,
                           flexWrap: 'wrap'
                         }
-                      }, selectedOrders.map(orderIndex => 
-                        React.createElement('input', {
+                      }, selectedOrders.map(orderIndex => {
+                        // 아이디 필드는 드롭다운으로
+                        if (key === 'personId') {
+                          const selectedSite = editableData[orderIndex]?.site || '';
+                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
+                          
+                          return React.createElement('select', {
+                            key: orderIndex,
+                            value: editableData[orderIndex]?.[key] || '',
+                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
+                            style: {
+                              flex: '1 1 200px',
+                              padding: '0.5rem',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }
+                          },
+                            currentSiteIds.map(id => 
+                              React.createElement('option', { key: id, value: id }, id)
+                            )
+                          );
+                        }
+                        
+                        // 나머지 필드는 텍스트 입력
+                        return React.createElement('input', {
                           key: orderIndex,
                           type: 'text',
                           value: editableData[orderIndex]?.[key] || '',
@@ -2083,8 +2108,8 @@ ${order.price}`;
                             borderRadius: '6px',
                             fontSize: '0.85rem'
                           }
-                        })
-                      ))
+                        });
+                      }))
                     );
                   })
                 )
