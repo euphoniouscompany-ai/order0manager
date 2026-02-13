@@ -194,7 +194,10 @@
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
-                if (config.siteIds) setSITE_IDS(config.siteIds);
+                if (config.siteIds) {
+                  setSITE_IDS(config.siteIds);
+                  console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
+                }
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
                 if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
@@ -1344,9 +1347,11 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 선택된 사이트에 따라 아이디 목록 표시
+                      // 데이터 테이블의 사이트 정보로 아이디 목록 결정
                       (() => {
-                        const currentSiteIds = SITE_IDS[order.site] || IDS;
+                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
+                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
+                        console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
