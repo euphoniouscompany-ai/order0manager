@@ -124,6 +124,7 @@
       const [PRESETS, setPRESETS] = useState(DEFAULT_PRESETS);
       const [SITES, setSITES] = useState(DEFAULT_SITES);
       const [IDS, setIDS] = useState(DEFAULT_IDS);
+      const [SITE_IDS, setSITE_IDS] = useState({}); // 사이트별 아이디
       const [CARDS, setCARDS] = useState(DEFAULT_CARDS);
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
@@ -135,14 +136,21 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
+        // 기본값으로 바로 시작 (Apps Script 로딩 스킵)
+        setLoading(false);
+        
+        // 백그라운드에서 로드 시도 (실패해도 무시)
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
+        // 일단 기본값으로 바로 시작
+        setLoading(false);
+        
+        // 백그라운드에서 시트 로딩 시도
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwH3n2pEt3NW7Ix3oo5PmC6qvwHYfoFYJ9ga7bJWsPp4pxjybx8VrSQo4aEUCdHX_WM/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-          setLoading(false);
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
           return;
         }
@@ -152,7 +160,12 @@
           const callbackName = 'jsonpCallback_' + Date.now();
           
           await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+              reject(new Error('Timeout'));
+            }, 3000);
+            
             window[callbackName] = (data) => {
+              clearTimeout(timeout);
               delete window[callbackName];
               
               if (data.success && data.config) {
@@ -181,6 +194,7 @@
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
+                if (config.siteIds) setSITE_IDS(config.siteIds);
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
                 if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
@@ -191,7 +205,7 @@
                   console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
                 }
                 
-                setLoading(false);
+                setConfigError(''); // 에러 메시지 제거
                 resolve();
               } else {
                 reject(new Error(data.error || '설정을 불러올 수 없습니다'));
@@ -200,18 +214,22 @@
             
             const script = document.createElement('script');
             script.src = APPS_SCRIPT_URL + '?action=getConfig&callback=' + callbackName;
-            script.onerror = () => reject(new Error('Script load failed'));
+            script.onerror = () => {
+              clearTimeout(timeout);
+              reject(new Error('Script load failed'));
+            };
             document.body.appendChild(script);
             
             setTimeout(() => {
-              document.body.removeChild(script);
+              if (document.body.contains(script)) {
+                document.body.removeChild(script);
+              }
             }, 5000);
           });
           
         } catch (error) {
-          console.error('설정 로딩 오류:', error);
-          setConfigError('⚠️ review-setting 시트를 불러올 수 없습니다. 기본값을 사용합니다.');
-          setLoading(false);
+          console.log('설정 로딩 실패 (기본값 사용):', error);
+          // 에러 메시지 표시 안 함
         }
       };
 
@@ -570,8 +588,6 @@
           '전화번호': 'phone',
           '연락처': 'phone',
           '핸드폰': 'phone',
-          '전화번호(하이픈제거': 'phoneNoHyphen',
-          '연락처(하이픈제거': 'phoneNoHyphen',
           '주소': 'address',
           '배송지': 'address',
           '금액': 'price',
@@ -579,16 +595,19 @@
           '결제금액': 'price',
           '사이트': 'site',
           '채널': 'site',
+          '구매채널': 'site',
           '카드': 'card',
           '배송': 'deliveryType',
           '리뷰': 'reviewMethod',
           '립비': 'reviewFee',
           '은행': 'bank',
+          '은행명': 'bank',
+          '계좌': 'accountWithHyphen',
           '계좌번호': 'accountWithHyphen',
           '은행 계좌번호': 'accountWithHyphen',
-          '계좌번호(하이픈삭제': 'account',
-          '은행 계좌번호(하이픈삭제': 'account',
-          '예금주': 'name'
+          '예금주': 'name',
+          '구입 금액': 'price',
+          '구입금액': 'price'
         };
         
         return mappings[fieldName] || fieldName;
@@ -616,8 +635,7 @@
 
       // 출력 데이터 생성
       const generateOutputText = () => {
-        const fields = parseFormTemplate(formTemplate);
-        if (fields.length === 0) {
+        if (!formTemplate.trim()) {
           alert('⚠️ 폼 양식을 입력해주세요');
           return '';
         }
@@ -631,16 +649,44 @@
           const data = editableData[orderIndex];
           if (!data) return '';
           
-          return fields.map(field => {
-            const key = mapFieldToKey(field);
-            const value = data[key] || '';
-            
-            if (removeLabels) {
-              return value;
-            } else {
-              return `${field}: ${value}`;
+          const lines = formTemplate.split('\n').filter(l => l.trim());
+          
+          return lines.map(line => {
+            // 슬래시 형식 체크
+            if (line.includes('/')) {
+              const parts = line.split('/');
+              const values = parts.map(part => {
+                const fieldName = part.trim();
+                const key = mapFieldToKey(fieldName);
+                return data[key] || '';
+              });
+              
+              // 슬래시 앞뒤 공백 유지
+              const separator = line.match(/\s*\/\s*/)?.[0] || '/';
+              
+              if (removeLabels) {
+                return values.join(separator);
+              } else {
+                return parts.map((part, i) => `${part.trim()}: ${values[i]}`).join(separator);
+              }
             }
-          }).join('\n');
+            // 일반 라벨 형식
+            else {
+              const match = line.match(/^([^:：]+)[:\：]?\s*$/);
+              if (match) {
+                const fieldName = match[1].trim();
+                const key = mapFieldToKey(fieldName);
+                const value = data[key] || '';
+                
+                if (removeLabels) {
+                  return value;
+                } else {
+                  return `${fieldName}: ${value}`;
+                }
+              }
+            }
+            return '';
+          }).filter(Boolean).join('\n');
         }).filter(Boolean).join('\n\n---\n\n');
       };
 
@@ -807,7 +853,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwH3n2pEt3NW7Ix3oo5PmC6qvwHYfoFYJ9ga7bJWsPp4pxjybx8VrSQo4aEUCdHX_WM/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
@@ -1298,8 +1344,13 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      IDS.map(id => React.createElement('option', { key: id, value: id }, id)),
-                      React.createElement('option', { value: '직접입력' }, '직접입력')
+                      // 선택된 사이트에 따라 아이디 목록 표시
+                      (() => {
+                        const currentSiteIds = SITE_IDS[order.site] || IDS;
+                        return currentSiteIds.map(id => 
+                          React.createElement('option', { key: id, value: id }, id)
+                        );
+                      })()
                     )
                   ),
 
