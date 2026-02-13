@@ -655,7 +655,7 @@
           const lines = formTemplate.split('\n').filter(l => l.trim());
           
           return lines.map(line => {
-            // 슬래시 형식 체크
+            // 슬래시 형식 체크 → 무조건 라벨 없이 출력
             if (line.includes('/')) {
               const parts = line.split('/');
               const values = parts.map(part => {
@@ -667,11 +667,8 @@
               // 슬래시 앞뒤 공백 유지
               const separator = line.match(/\s*\/\s*/)?.[0] || '/';
               
-              if (removeLabels) {
-                return values.join(separator);
-              } else {
-                return parts.map((part, i) => `${part.trim()}: ${values[i]}`).join(separator);
-              }
+              // 슬래시 형식은 항상 라벨 없이 값만 출력
+              return values.join(separator);
             }
             // 일반 라벨 형식
             else {
