@@ -124,7 +124,8 @@
       const [PRESETS, setPRESETS] = useState(DEFAULT_PRESETS);
       const [SITES, setSITES] = useState(DEFAULT_SITES);
       const [IDS, setIDS] = useState(DEFAULT_IDS);
-      const [SITE_IDS, setSITE_IDS] = useState({}); // 사이트별 아이디
+      const [SITE_IDS, setSITE_IDS] = useState({});
+      const [NAME_ID_MAPPINGS, setNAME_ID_MAPPINGS] = useState({}); // 이름별 사이트 아이디
       const [CARDS, setCARDS] = useState(DEFAULT_CARDS);
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
@@ -171,32 +172,35 @@
               if (data.success && data.config) {
                 const config = data.config;
                 
-                // 사람 정보 변환
+                // 사람 정보 변환 (nameIdMappings 기반)
                 if (config.people && config.people.length > 0) {
                   const newPresets = {};
                   config.people.forEach(person => {
+                    const siteIds = config.nameIdMappings[person.name] || {};
                     newPresets[person.name] = {
                       name: person.name,
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
                       phone: person.phone,
                       address: person.address,
-                      coupangId: person.coupangId,
-                      naverId: person.naverId,
+                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
+                      naverId: siteIds['네이버'] || person.naverId || '',
                       bank: "신한은행",
                       account: "110254150254",
                       accountWithHyphen: "110254-150254"
                     };
                   });
                   setPRESETS(newPresets);
-                  
-                  const ids = config.people.map(p => p.coupangId).filter(Boolean);
-                  if (ids.length > 0) setIDS(ids);
+                  console.log('✅ 프리셋 로드됨:', newPresets);
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
+                }
+                if (config.nameIdMappings) {
+                  setNAME_ID_MAPPINGS(config.nameIdMappings);
+                  console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
                 if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
@@ -439,17 +443,35 @@
           }
         }
         
+        // 사이트에 따른 아이디 자동 설정
+        const detectedSite = parsed.site || newOrders[index].site;
+        
+        // 1순위: 이름-아이디 매핑에서 찾기 (이름 + 사이트 조합)
+        let defaultId = '';
+        if (matchedPerson && NAME_ID_MAPPINGS[matchedPerson] && detectedSite) {
+          defaultId = NAME_ID_MAPPINGS[matchedPerson][detectedSite] || '';
+        }
+        // 2순위: 사이트별 아이디 첫 번째
+        if (!defaultId) {
+          const siteIdList = SITE_IDS[detectedSite] || [];
+          defaultId = siteIdList.length > 0 ? siteIdList[0] : '';
+        }
+        // 3순위: 프리셋 쿠팡 아이디
+        if (!defaultId) {
+          defaultId = PRESETS[matchedPerson]?.coupangId || '';
+        }
+
         newOrders[index] = {
           ...newOrders[index],
           rawText: text,
-          site: parsed.site || newOrders[index].site,
+          site: detectedSite,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
           price: parsed.price || newOrders[index].price,
-          person: matchedPerson,  // 자동 매칭된 사람
-          personId: PRESETS[matchedPerson].coupangId,  // 아이디도 자동 설정
-          parsedReceiver: parsed.receiver,  // 파싱된 원본 이름 보존
-          parsedPhone: parsed.phone,        // 파싱된 전화번호 보존
-          parsedAddress: parsed.address,    // 파싱된 주소 보존
+          person: matchedPerson,
+          personId: defaultId,
+          parsedReceiver: parsed.receiver,
+          parsedPhone: parsed.phone,
+          parsedAddress: parsed.address,
           parsed: parsed.detected
         };
         setOrders(newOrders);
