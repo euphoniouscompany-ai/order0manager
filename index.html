@@ -409,12 +409,30 @@
       const handlePaste = (index, text) => {
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
+        
+        // 파싱된 이름으로 프리셋 자동 매칭
+        let matchedPerson = newOrders[index].person;
+        if (parsed.receiver) {
+          // PRESETS에서 이름이 일치하는 사람 찾기
+          const foundPerson = Object.keys(PRESETS).find(name => 
+            name.includes(parsed.receiver) || parsed.receiver.includes(name)
+          );
+          if (foundPerson) {
+            matchedPerson = foundPerson;
+          }
+        }
+        
         newOrders[index] = {
           ...newOrders[index],
           rawText: text,
           site: parsed.site || newOrders[index].site,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
           price: parsed.price || newOrders[index].price,
+          person: matchedPerson,  // 자동 매칭된 사람
+          personId: PRESETS[matchedPerson].coupangId,  // 아이디도 자동 설정
+          parsedReceiver: parsed.receiver,  // 파싱된 원본 이름 보존
+          parsedPhone: parsed.phone,        // 파싱된 전화번호 보존
+          parsedAddress: parsed.address,    // 파싱된 주소 보존
           parsed: parsed.detected
         };
         setOrders(newOrders);
@@ -508,23 +526,30 @@
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '') : order.reviewFee;
           
           newEditableData[orderIndex] = {
-            name: preset.name,
+            // 주문서 데이터 우선, 없으면 프리셋
+            name: order.parsedReceiver || preset.name,
+            receiver: order.parsedReceiver || preset.name,
+            phone: order.parsedPhone || preset.phone,
+            phoneNoHyphen: (order.parsedPhone || preset.phone).replace(/-/g, ''),
+            address: order.parsedAddress || preset.address,
+            
+            // 주문 정보
             orderNumber: order.orderNumber,
             personId: personId,
-            naverId: preset.naverId,
-            phone: preset.phone,
-            phoneNoHyphen: preset.phone.replace(/-/g, ''),
-            address: preset.address,
             price: order.price,
             site: site,
-            card: order.card,
-            deliveryType: order.deliveryType,
-            reviewMethod: order.reviewMethod,
-            reviewFee: reviewFee,
+            
+            // 프리셋에만 있는 정보
+            naverId: preset.naverId,
             bank: preset.bank,
             account: preset.account,
             accountWithHyphen: preset.accountWithHyphen,
-            receiver: preset.name
+            
+            // 설정
+            card: order.card,
+            deliveryType: order.deliveryType,
+            reviewMethod: order.reviewMethod,
+            reviewFee: reviewFee
           };
         });
         
