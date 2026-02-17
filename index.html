@@ -186,7 +186,8 @@
                       naverId: siteIds['네이버'] || person.naverId || '',
                       bank: "신한은행",
                       account: "110254150254",
-                      accountWithHyphen: "110254-150254"
+                      accountWithHyphen: "110254-150254",
+                      accountHolder: "이해운"  // 예금주 고정
                     };
                   });
                   setPRESETS(newPresets);
@@ -583,6 +584,7 @@
             bank: preset.bank,
             account: preset.account,
             accountWithHyphen: preset.accountWithHyphen,
+            accountHolder: preset.accountHolder || "이해운",
             
             // 설정
             card: order.card,
@@ -672,7 +674,8 @@
           '계좌': 'accountWithHyphen',
           '계좌번호': 'accountWithHyphen',
           '은행 계좌번호': 'accountWithHyphen',
-          '예금주': 'name',
+          '예금주': 'accountHolder',
+          '예금주명': 'accountHolder',
           '구입 금액': 'price',
           '구입금액': 'price'
         };
