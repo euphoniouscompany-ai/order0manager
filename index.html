@@ -765,6 +765,51 @@
         }
       };
 
+      // 익스텐션으로 주문 데이터 전송
+      const sendToExtension = () => {
+        if (selectedOrders.length === 0) {
+          alert('⚠️ 출력할 주문을 선택해주세요');
+          return;
+        }
+
+        const ordersData = selectedOrders.map(orderIndex => {
+          const data = editableData[orderIndex];
+          if (!data) return null;
+          return {
+            name: data.name,
+            receiver: data.receiver,
+            phone: data.phone,
+            phoneNoHyphen: data.phoneNoHyphen,
+            address: data.address,
+            orderNumber: data.orderNumber,
+            personId: data.personId,
+            bank: data.bank,
+            accountWithHyphen: data.accountWithHyphen,
+            account: data.account,
+            accountHolder: data.accountHolder,
+            price: data.price,
+            site: data.site,
+            reviewMethod: data.reviewMethod,
+            reviewFee: data.reviewFee,
+            card: data.card,
+          };
+        }).filter(Boolean);
+
+        // chrome.storage에 저장 (익스텐션이 읽어감)
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+          chrome.storage.local.set({
+            orders: ordersData,
+            labelMappings: learnedMappings,
+            currentIndex: 0   // 새로 전송 시 항상 첫 번째부터
+          }, () => {
+            alert(`✅ ${ordersData.length}개 주문을 익스텐션으로 전송했습니다!\n폼 페이지에서 익스텐션 아이콘을 클릭하세요.`);
+          });
+        } else {
+          // 익스텐션 없을 때 클립보드로 대체
+          alert('⚠️ 익스텐션이 설치되지 않았습니다.\n크롬 익스텐션을 먼저 설치해주세요.');
+        }
+      };
+
       const [outputSettings, setOutputSettings] = useState({
         format: 'form',
         customTemplate: '',
@@ -2183,7 +2228,9 @@ ${order.price}`;
               React.createElement('div', {
                 style: {
                   display: 'flex',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap'
                 }
               },
                 React.createElement('button', {
@@ -2199,7 +2246,21 @@ ${order.price}`;
                     cursor: 'pointer',
                     boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
                   }
-                }, '📋 복사하기')
+                }, '📋 복사하기'),
+                React.createElement('button', {
+                  onClick: sendToExtension,
+                  style: {
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '1rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)'
+                  }
+                }, '🔌 익스텐션으로 전송')
               )
             ),
 
