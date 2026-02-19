@@ -124,8 +124,6 @@
       const [PRESETS, setPRESETS] = useState(DEFAULT_PRESETS);
       const [SITES, setSITES] = useState(DEFAULT_SITES);
       const [IDS, setIDS] = useState(DEFAULT_IDS);
-      const [SITE_IDS, setSITE_IDS] = useState({});
-      const [NAME_ID_MAPPINGS, setNAME_ID_MAPPINGS] = useState({}); // 이름별 사이트 아이디
       const [CARDS, setCARDS] = useState(DEFAULT_CARDS);
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
@@ -137,107 +135,63 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
-        // 기본값으로 바로 시작 (Apps Script 로딩 스킵)
-        setLoading(false);
-        
-        // 백그라운드에서 로드 시도 (실패해도 무시)
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
-        // 일단 기본값으로 바로 시작
-        setLoading(false);
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwH3n2pEt3NW7Ix3oo5PmC6qvwHYfoFYJ9ga7bJWsPp4pxjybx8VrSQo4aEUCdHX_WM/exec';
         
-        // 백그라운드에서 시트 로딩 시도
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
-        
-        if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+        if (APPS_SCRIPT_URL === 'https://script.google.com/macros/s/AKfycbwH3n2pEt3NW7Ix3oo5PmC6qvwHYfoFYJ9ga7bJWsPp4pxjybx8VrSQo4aEUCdHX_WM/exec') {
+          setLoading(false);
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
           return;
         }
 
         try {
-          // JSONP 방식으로 CORS 우회
-          const callbackName = 'jsonpCallback_' + Date.now();
+          const response = await fetch(APPS_SCRIPT_URL + '?action=getConfig');
+          const data = await response.json();
           
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              reject(new Error('Timeout'));
-            }, 3000);
+          if (data.success && data.config) {
+            const config = data.config;
             
-            window[callbackName] = (data) => {
-              clearTimeout(timeout);
-              delete window[callbackName];
+            // 사람 정보 변환
+            if (config.people && config.people.length > 0) {
+              const newPresets = {};
+              config.people.forEach(person => {
+                newPresets[person.name] = {
+                  name: person.name,
+                  reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
+                  phone: person.phone,
+                  address: person.address,
+                  coupangId: person.coupangId,
+                  naverId: person.naverId,
+                  bank: "신한은행",
+                  account: "110254150254",
+                  accountWithHyphen: "110254-150254"
+                };
+              });
+              setPRESETS(newPresets);
               
-              if (data.success && data.config) {
-                const config = data.config;
-                
-                // 사람 정보 변환 (nameIdMappings 기반)
-                if (config.people && config.people.length > 0) {
-                  const newPresets = {};
-                  config.people.forEach(person => {
-                    const siteIds = config.nameIdMappings[person.name] || {};
-                    newPresets[person.name] = {
-                      name: person.name,
-                      reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
-                      phone: person.phone,
-                      address: person.address,
-                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
-                      naverId: siteIds['네이버'] || person.naverId || '',
-                      bank: "신한은행",
-                      account: "110254150254",
-                      accountWithHyphen: "110254-150254",
-                      accountHolder: "이해운"  // 예금주 고정
-                    };
-                  });
-                  setPRESETS(newPresets);
-                  console.log('✅ 프리셋 로드됨:', newPresets);
-                }
-                
-                if (config.sites && config.sites.length > 0) setSITES(config.sites);
-                if (config.siteIds) {
-                  setSITE_IDS(config.siteIds);
-                  console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
-                }
-                if (config.nameIdMappings) {
-                  setNAME_ID_MAPPINGS(config.nameIdMappings);
-                  console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
-                }
-                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
-                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
-                if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
-                
-                if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
-                  setLearnedMappings(config.labelMappings);
-                  console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
-                }
-                
-                setConfigError(''); // 에러 메시지 제거
-                resolve();
-              } else {
-                reject(new Error(data.error || '설정을 불러올 수 없습니다'));
-              }
-            };
+              // ID 목록도 업데이트
+              const ids = config.people.map(p => p.coupangId).filter(Boolean);
+              if (ids.length > 0) setIDS(ids);
+            }
             
-            const script = document.createElement('script');
-            script.src = APPS_SCRIPT_URL + '?action=getConfig&callback=' + callbackName;
-            script.onerror = () => {
-              clearTimeout(timeout);
-              reject(new Error('Script load failed'));
-            };
-            document.body.appendChild(script);
+            // 나머지 설정
+            if (config.sites && config.sites.length > 0) setSITES(config.sites);
+            if (config.cards && config.cards.length > 0) setCARDS(config.cards);
+            if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
+            if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
+            if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
             
-            setTimeout(() => {
-              if (document.body.contains(script)) {
-                document.body.removeChild(script);
-              }
-            }, 5000);
-          });
-          
+            setLoading(false);
+          } else {
+            throw new Error(data.error || '설정을 불러올 수 없습니다');
+          }
         } catch (error) {
-          console.log('설정 로딩 실패 (기본값 사용):', error);
-          // 에러 메시지 표시 안 함
+          console.error('설정 로딩 오류:', error);
+          setConfigError('⚠️ review-setting 시트를 불러올 수 없습니다. 기본값을 사용합니다.');
+          setLoading(false);
         }
       };
 
@@ -274,11 +228,10 @@
 
       // 주문번호 추출 (다양한 패턴)
       const orderPatterns = [
-        /주문번호\s*(\d{10,})/i,              // 쿠팡: "주문번호 21100171701760"
         /주문\s*번호[:\s]*(\d{10,})/i,
         /order[:\s]*(?:no|number)[:\s]*(\d{10,})/i,
         /번호[:\s]*(\d{10,})/i,
-        /(\d{14,20})/                         // 14-20자리 숫자 (쿠팡 주문번호)
+        /(\d{13,20})/  // 13-20자리 숫자
       ];
 
       for (const pattern of orderPatterns) {
@@ -291,17 +244,6 @@
 
       // 금액 추출
       const pricePatterns = [
-        // 네이버페이 우선: 카드 간편결제 / 신용카드 뒤의 금액
-        /(?:카드\s*간편결제|신용카드|체크카드)\s*\n\s*(\d{1,3}(?:,\d{3})*)\s*원/i,
-        /(?:카드\s*간편결제|신용카드|체크카드)[^\d]*(\d{1,3}(?:,\d{3})*)\s*원/i,
-        
-        // 계좌이체
-        /(?:계좌이체|무통장입금)\s*\n\s*(\d{1,3}(?:,\d{3})*)\s*원/i,
-        
-        // 네이버페이: 주문금액 섹션
-        /주문금액[^\d]*총\s*(\d{1,3}(?:,\d{3})*)\s*원/i,
-        
-        // 일반 패턴
         /총\s*결제\s*금액[:\s]*(\d{1,3}(?:,\d{3})*)\s*원/i,
         /최종\s*결제\s*금액[:\s]*(\d{1,3}(?:,\d{3})*)/i,
         /total[:\s]*(\d{1,3}(?:,\d{3})*)/i,
@@ -318,12 +260,9 @@
 
       // 수취인 추출
       const receiverPatterns = [
-        /받는사람\t([^\t\n]+)/i,              // 쿠팡: "받는사람\t정동신\t" (탭 구분)
-        /받는사람\s{2,}([^\s\n][^\n]*)/i,    // 쿠팡: "받는사람   정동신"
-        /받는\s*사람[:\s]+([가-힣]{2,5})/i,  // "받는 사람: 이해운" (한글 이름만)
-        /수취인[:\s]+([가-힣]{2,5})/i,
-        /수령자[:\s]+([가-힣]{2,5})/i,
-        /받으시는\s*분[:\s]+([가-힣]{2,5})/i,
+        /받는\s*사람[:\s]*([^\s\t]+)/i,
+        /수령자[:\s]*([^\s\t]+)/i,
+        /받으시는\s*분[:\s]*([^\s\t]+)/i,
         /배송지명[^\(]*\(([^\)]+)\)/i
       ];
 
@@ -336,21 +275,13 @@
       }
 
       // 전화번호 추출
-      const phonePatterns = [
-        /연락처\s*(010[-\s]?\d{4}[-\s]?\d{4})/i,  // 쿠팡: "연락처	010-9083-9985"
-        /(010[-\s]?\d{4}[-\s]?\d{4})/
-      ];
-      for (const pattern of phonePatterns) {
-        const phoneMatch = text.match(pattern);
-        if (phoneMatch) {
-          result.phone = phoneMatch[1].replace(/\s/g, '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
-          break;
-        }
+      const phoneMatch = text.match(/(010[-\s]?\d{4}[-\s]?\d{4})/);
+      if (phoneMatch) {
+        result.phone = phoneMatch[1].replace(/\s/g, '').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
       }
 
-      // 주소 추출
+      // 주소 추출 (우편번호 있는 주소)
       const addressPatterns = [
-        /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡: "받는주소	(10248) 경기도..."
         /\((\d{5})\)\s*([^\n]+)/,
         /\[(\d{5})\]\s*([^\n]+)/,
         /주소[:\s]*\(?\d{5}\)?\s*([^\n]+)/i,
@@ -360,12 +291,7 @@
       for (const pattern of addressPatterns) {
         const match = text.match(pattern);
         if (match) {
-          // 주소에서 우편번호, 배송요청사항 등 제거
-          let addr = match[match.length - 1].trim();
-          // 탭 문자 이후 내용 제거 (쿠팡 배송요청사항)
-          addr = addr.split('\t')[0].trim();
-          // 괄호 안 아파트명 등은 유지, 그 이후 불필요한 내용 제거
-          result.address = addr;
+          result.address = match[match.length - 1].trim();
           break;
         }
       }
@@ -389,14 +315,12 @@
           reviewMethod: '포토',
           reviewFee: '1000',
           guideline: '',
-          productUrl: '',
           parsed: false
         }
       ]);
 
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
-        transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
         deliveryType: '실배',
         reviewMethod: '포토',
         reviewFee: '1000',
@@ -415,9 +339,8 @@
           card: CARDS[0],
           deliveryType: '실배',
           reviewMethod: '포토',
-          reviewFee: '1000',
+          reviewFee: '0',
           guideline: '',
-          productUrl: '',
           parsed: false
         }]);
       };
@@ -431,48 +354,12 @@
       const handlePaste = (index, text) => {
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
-        
-        // 파싱된 이름으로 프리셋 자동 매칭
-        let matchedPerson = newOrders[index].person;
-        if (parsed.receiver) {
-          // PRESETS에서 이름이 일치하는 사람 찾기
-          const foundPerson = Object.keys(PRESETS).find(name => 
-            name.includes(parsed.receiver) || parsed.receiver.includes(name)
-          );
-          if (foundPerson) {
-            matchedPerson = foundPerson;
-          }
-        }
-        
-        // 사이트에 따른 아이디 자동 설정
-        const detectedSite = parsed.site || newOrders[index].site;
-        
-        // 1순위: 이름-아이디 매핑에서 찾기 (이름 + 사이트 조합)
-        let defaultId = '';
-        if (matchedPerson && NAME_ID_MAPPINGS[matchedPerson] && detectedSite) {
-          defaultId = NAME_ID_MAPPINGS[matchedPerson][detectedSite] || '';
-        }
-        // 2순위: 사이트별 아이디 첫 번째
-        if (!defaultId) {
-          const siteIdList = SITE_IDS[detectedSite] || [];
-          defaultId = siteIdList.length > 0 ? siteIdList[0] : '';
-        }
-        // 3순위: 프리셋 쿠팡 아이디
-        if (!defaultId) {
-          defaultId = PRESETS[matchedPerson]?.coupangId || '';
-        }
-
         newOrders[index] = {
           ...newOrders[index],
           rawText: text,
-          site: detectedSite,
+          site: parsed.site || newOrders[index].site,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
           price: parsed.price || newOrders[index].price,
-          person: matchedPerson,
-          personId: defaultId,
-          parsedReceiver: parsed.receiver,
-          parsedPhone: parsed.phone,
-          parsedAddress: parsed.address,
           parsed: parsed.detected
         };
         setOrders(newOrders);
@@ -488,30 +375,13 @@
       };
 
       const applyCommonSettings = () => {
-        setOrders(orders.map(order => {
-          const updatedOrder = {
-            ...order,
-            deliveryType: commonSettings.deliveryType,
-            reviewMethod: commonSettings.reviewMethod,
-            reviewFee: commonSettings.reviewFee,
-            guideline: commonSettings.guideline
-          };
-          
-          // 주문자 일괄 적용 (선택된 경우)
-          if (commonSettings.person) {
-            updatedOrder.person = commonSettings.person;
-            updatedOrder.personId = PRESETS[commonSettings.person].coupangId;
-          }
-          
-          // 립비 직접입력 값 적용
-          if (commonSettings.reviewFee === '직접입력' && commonSettings.customReviewFee) {
-            updatedOrder.customFee = commonSettings.customReviewFee;
-          }
-          
-          return updatedOrder;
-        }));
-        
-        alert('✅ 공통 설정이 모든 주문에 적용되었습니다!');
+        setOrders(orders.map(order => ({
+          ...order,
+          deliveryType: commonSettings.deliveryType,
+          reviewMethod: commonSettings.reviewMethod,
+          reviewFee: commonSettings.reviewFee,
+          guideline: commonSettings.guideline
+        })));
       };
 
       const resetAllOrders = () => {
@@ -527,286 +397,18 @@
             card: CARDS[0],
             deliveryType: '실배',
             reviewMethod: '포토',
-            reviewFee: '1000',
+            reviewFee: '0',
             guideline: '',
-            productUrl: '',
             parsed: false
           }]);
           setCommonSettings({
             talkRoomName: '',
-            transactionDate: new Date().toISOString().split('T')[0],
             deliveryType: '실배',
             reviewMethod: '포토',
-            reviewFee: '1000',
+            reviewFee: '0',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
-        }
-      };
-
-      // 출력 설정 state
-      const [formTemplate, setFormTemplate] = useState('');
-      const [removeLabels, setRemoveLabels] = useState(false);
-      const [selectedOrders, setSelectedOrders] = useState([]);
-      const [outputData, setOutputData] = useState({});
-      const [editableData, setEditableData] = useState({}); // 편집 가능한 데이터
-
-      // 주문 선택 시 편집 데이터 초기화
-      useEffect(() => {
-        const fields = parseFormTemplate(formTemplate);
-        const newEditableData = {};
-        
-        selectedOrders.forEach(orderIndex => {
-          const order = orders[orderIndex];
-          if (!order) return;
-          
-          const preset = PRESETS[order.person];
-          const site = order.site === '직접입력' ? (order.customSite || '') : order.site;
-          const personId = order.personId === '직접입력' ? (order.customId || '') : order.personId;
-          const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '') : order.reviewFee;
-          
-          newEditableData[orderIndex] = {
-            // 주문서 데이터 우선, 없으면 프리셋
-            name: order.parsedReceiver || preset.name,
-            receiver: order.parsedReceiver || preset.name,
-            phone: order.parsedPhone || preset.phone,
-            phoneNoHyphen: (order.parsedPhone || preset.phone).replace(/-/g, ''),
-            address: order.parsedAddress || preset.address,
-            
-            // 주문 정보
-            orderNumber: order.orderNumber,
-            personId: personId,
-            price: order.price,
-            site: site,
-            
-            // 프리셋에만 있는 정보
-            naverId: preset.naverId,
-            bank: preset.bank,
-            account: preset.account,
-            accountWithHyphen: preset.accountWithHyphen,
-            accountHolder: preset.accountHolder || "이해운",
-            
-            // 설정
-            card: order.card,
-            deliveryType: order.deliveryType,
-            reviewMethod: order.reviewMethod,
-            reviewFee: reviewFee
-          };
-        });
-        
-        setEditableData(newEditableData);
-      }, [selectedOrders, formTemplate, orders]);
-
-      // 편집 데이터 업데이트
-      const updateEditableData = (orderIndex, field, value) => {
-        setEditableData({
-          ...editableData,
-          [orderIndex]: {
-            ...editableData[orderIndex],
-            [field]: value
-          }
-        });
-      };
-
-      // 폼 양식 파싱
-      const parseFormTemplate = (template) => {
-        const lines = template.split('\n').filter(l => l.trim());
-        const fields = [];
-        
-        lines.forEach(line => {
-          // "이름:", "주문번호:" 같은 라벨 추출
-          const match = line.match(/^([^:：/]+)[:\：]?\s*$/);
-          if (match) {
-            fields.push(match[1].trim());
-          }
-          // "이름 / 전화번호" 같은 슬래시 구분
-          else if (line.includes('/')) {
-            const parts = line.split('/').map(p => p.trim());
-            fields.push(...parts);
-          }
-        });
-        
-        return fields;
-      };
-
-      // 필드명을 데이터 키로 매핑
-      const [learnedMappings, setLearnedMappings] = useState(() => {
-        const saved = localStorage.getItem('learnedMappings');
-        return saved ? JSON.parse(saved) : {};
-      });
-
-      const mapFieldToKey = (fieldName) => {
-        // 먼저 학습된 매핑 확인
-        if (learnedMappings[fieldName]) {
-          return learnedMappings[fieldName];
-        }
-        
-        const mappings = {
-          '이름': 'name',
-          '성명': 'name',
-          '구매자': 'name',
-          '성함': 'name',
-          '수취인': 'receiver',
-          '받는분': 'receiver',
-          '받는사람': 'receiver',
-          '주문번호': 'orderNumber',
-          '번호': 'orderNumber',
-          '아이디': 'personId',
-          'ID': 'personId',
-          '이메일': 'naverId',
-          '전화번호': 'phone',
-          '연락처': 'phone',
-          '핸드폰': 'phone',
-          '주소': 'address',
-          '배송지': 'address',
-          '금액': 'price',
-          '가격': 'price',
-          '결제금액': 'price',
-          '사이트': 'site',
-          '채널': 'site',
-          '구매채널': 'site',
-          '카드': 'card',
-          '배송': 'deliveryType',
-          '리뷰': 'reviewMethod',
-          '립비': 'reviewFee',
-          '은행': 'bank',
-          '은행명': 'bank',
-          '계좌': 'accountWithHyphen',
-          '계좌번호': 'accountWithHyphen',
-          '은행 계좌번호': 'accountWithHyphen',
-          '예금주': 'accountHolder',
-          '예금주명': 'accountHolder',
-          '구입 금액': 'price',
-          '구입금액': 'price'
-        };
-        
-        return mappings[fieldName] || fieldName;
-      };
-
-      // 라벨 학습 저장
-      const saveLearnedMapping = (label, key) => {
-        const newMappings = {
-          ...learnedMappings,
-          [label]: key
-        };
-        setLearnedMappings(newMappings);
-        localStorage.setItem('learnedMappings', JSON.stringify(newMappings));
-        alert(`✅ "${label}" → "${key}" 매핑이 저장되었습니다!`);
-      };
-
-      // 주문 선택 토글
-      const toggleOrderSelection = (index) => {
-        if (selectedOrders.includes(index)) {
-          setSelectedOrders(selectedOrders.filter(i => i !== index));
-        } else {
-          setSelectedOrders([...selectedOrders, index]);
-        }
-      };
-
-      // 출력 데이터 생성
-      const generateOutputText = () => {
-        if (!formTemplate.trim()) {
-          alert('⚠️ 폼 양식을 입력해주세요');
-          return '';
-        }
-        
-        if (selectedOrders.length === 0) {
-          alert('⚠️ 출력할 주문을 선택해주세요');
-          return '';
-        }
-        
-        return selectedOrders.map(orderIndex => {
-          const data = editableData[orderIndex];
-          if (!data) return '';
-          
-          const lines = formTemplate.split('\n').filter(l => l.trim());
-          
-          return lines.map(line => {
-            // 슬래시 형식 체크 → 무조건 라벨 없이 출력
-            if (line.includes('/')) {
-              const parts = line.split('/');
-              const values = parts.map(part => {
-                const fieldName = part.trim();
-                const key = mapFieldToKey(fieldName);
-                return data[key] || '';
-              });
-              
-              // 슬래시 앞뒤 공백 유지
-              const separator = line.match(/\s*\/\s*/)?.[0] || '/';
-              
-              // 슬래시 형식은 항상 라벨 없이 값만 출력
-              return values.join(separator);
-            }
-            // 일반 라벨 형식
-            else {
-              const match = line.match(/^([^:：]+)[:\：]?\s*$/);
-              if (match) {
-                const fieldName = match[1].trim();
-                const key = mapFieldToKey(fieldName);
-                const value = data[key] || '';
-                
-                if (removeLabels) {
-                  return value;
-                } else {
-                  return `${fieldName}: ${value}`;
-                }
-              }
-            }
-            return '';
-          }).filter(Boolean).join('\n');
-        }).filter(Boolean).join('\n\n---\n\n');
-      };
-
-      const copyOutputToClipboard = () => {
-        const text = generateOutputText();
-        if (text) {
-          navigator.clipboard.writeText(text);
-          alert(`✅ ${selectedOrders.length}개 주문이 복사되었습니다!`);
-        }
-      };
-
-      // 익스텐션으로 주문 데이터 전송
-      const sendToExtension = () => {
-        if (selectedOrders.length === 0) {
-          alert('⚠️ 출력할 주문을 선택해주세요');
-          return;
-        }
-
-        const ordersData = selectedOrders.map(orderIndex => {
-          const data = editableData[orderIndex];
-          if (!data) return null;
-          return {
-            name: data.name,
-            receiver: data.receiver,
-            phone: data.phone,
-            phoneNoHyphen: data.phoneNoHyphen,
-            address: data.address,
-            orderNumber: data.orderNumber,
-            personId: data.personId,
-            bank: data.bank,
-            accountWithHyphen: data.accountWithHyphen,
-            account: data.account,
-            accountHolder: data.accountHolder,
-            price: data.price,
-            site: data.site,
-            reviewMethod: data.reviewMethod,
-            reviewFee: data.reviewFee,
-            card: data.card,
-          };
-        }).filter(Boolean);
-
-        // chrome.storage에 저장 (익스텐션이 읽어감)
-        if (typeof chrome !== 'undefined' && chrome.storage) {
-          chrome.storage.local.set({
-            orders: ordersData,
-            labelMappings: learnedMappings,
-            currentIndex: 0   // 새로 전송 시 항상 첫 번째부터
-          }, () => {
-            alert(`✅ ${ordersData.length}개 주문을 익스텐션으로 전송했습니다!\n폼 페이지에서 익스텐션 아이콘을 클릭하세요.`);
-          });
-        } else {
-          // 익스텐션 없을 때 클립보드로 대체
-          alert('⚠️ 익스텐션이 설치되지 않았습니다.\n크롬 익스텐션을 먼저 설치해주세요.');
         }
       };
 
@@ -965,7 +567,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
+        const APPS_SCRIPT_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
@@ -973,9 +575,8 @@ ${order.price}`;
         }
 
         const sheetsData = orders.filter(o => o.orderNumber && o.price).map(order => {
-          // 공통 설정에서 선택한 날짜 사용
-          const selectedDate = new Date(commonSettings.transactionDate);
-          const dateStr = `${selectedDate.getFullYear()}. ${selectedDate.getMonth() + 1}. ${selectedDate.getDate()}`;
+          const today = new Date();
+          const dateStr = `${today.getFullYear()}. ${today.getMonth() + 1}. ${today.getDate()}`;
           
           // 직접입력 값 처리
           const site = order.site === '직접입력' ? (order.customSite || '직접입력') : order.site;
@@ -993,8 +594,7 @@ ${order.price}`;
             review: order.reviewMethod,
             reviewFee: reviewFee,
             guideline: order.guideline,
-            orderNumber: order.orderNumber,
-            productUrl: order.productUrl || ''
+            orderNumber: order.orderNumber
           };
         });
 
@@ -1370,37 +970,11 @@ ${order.price}`;
                           fontSize: '0.9rem'
                         }
                       })
-                    ),
-
-                    // 상품 URL
-                    React.createElement('div', null,
-                      React.createElement('label', {
-                        style: {
-                          display: 'block',
-                          fontSize: '0.8rem',
-                          fontWeight: '500',
-                          color: '#475569',
-                          marginBottom: '0.5rem'
-                        }
-                      }, '상품 URL (선택)'),
-                      React.createElement('input', {
-                        type: 'text',
-                        value: order.productUrl || '',
-                        onChange: (e) => updateOrder(index, 'productUrl', e.target.value),
-                        placeholder: 'https://...',
-                        style: {
-                          width: '100%',
-                          padding: '0.5rem',
-                          border: '1px solid #cbd5e1',
-                          borderRadius: '6px',
-                          fontSize: '0.9rem'
-                        }
-                      })
                     )
                   )
                 ),
 
-                // 주문자 설정
+                // 발송인 설정
                 React.createElement('div', {
                   style: {
                     display: 'grid',
@@ -1408,7 +982,7 @@ ${order.price}`;
                     gap: '1rem'
                   }
                 },
-                  // 주문자
+                  // 발송인
                   React.createElement('div', null,
                     React.createElement('label', {
                       style: {
@@ -1418,7 +992,7 @@ ${order.price}`;
                         color: '#475569',
                         marginBottom: '0.5rem'
                       }
-                    }, '주문자'),
+                    }, '발송인'),
                     React.createElement('select', {
                       value: order.person,
                       onChange: (e) => updateOrder(index, 'person', e.target.value),
@@ -1456,15 +1030,8 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 데이터 테이블의 사이트 정보로 아이디 목록 결정
-                      (() => {
-                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
-                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
-                        console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
-                        return currentSiteIds.map(id => 
-                          React.createElement('option', { key: id, value: id }, id)
-                        );
-                      })()
+                      IDS.map(id => React.createElement('option', { key: id, value: id }, id)),
+                      React.createElement('option', { value: '직접입력' }, '직접입력')
                     )
                   ),
 
@@ -1674,60 +1241,6 @@ ${order.price}`;
                   marginBottom: '1rem'
                 }
               },
-                // 주문자
-                React.createElement('div', null,
-                  React.createElement('label', {
-                    style: {
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: '500',
-                      color: '#475569',
-                      marginBottom: '0.5rem'
-                    }
-                  }, '주문자 (일괄 적용)'),
-                  React.createElement('select', {
-                    value: commonSettings.person || '',
-                    onChange: (e) => setCommonSettings({...commonSettings, person: e.target.value}),
-                    style: {
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      fontSize: '0.9rem'
-                    }
-                  }, 
-                    React.createElement('option', { value: '' }, '선택 안함 (자동)'),
-                    Object.keys(PRESETS).map(name =>
-                      React.createElement('option', { key: name, value: name }, name)
-                    )
-                  )
-                ),
-
-                // 거래일자
-                React.createElement('div', null,
-                  React.createElement('label', {
-                    style: {
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: '500',
-                      color: '#475569',
-                      marginBottom: '0.5rem'
-                    }
-                  }, '거래일자'),
-                  React.createElement('input', {
-                    type: 'date',
-                    value: commonSettings.transactionDate,
-                    onChange: (e) => setCommonSettings({...commonSettings, transactionDate: e.target.value}),
-                    style: {
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '1px solid #cbd5e1',
-                      borderRadius: '6px',
-                      fontSize: '0.9rem'
-                    }
-                  })
-                ),
-
                 // 톡방이름
                 React.createElement('div', null,
                   React.createElement('label', {
@@ -1830,32 +1343,6 @@ ${order.price}`;
                   }, REVIEW_FEES.map(fee =>
                     React.createElement('option', { key: fee, value: fee }, fee)
                   ))
-                ),
-
-                // 립비 직접입력
-                commonSettings.reviewFee === '직접입력' && React.createElement('div', null,
-                  React.createElement('label', {
-                    style: {
-                      display: 'block',
-                      fontSize: '0.85rem',
-                      fontWeight: '500',
-                      color: '#475569',
-                      marginBottom: '0.5rem'
-                    }
-                  }, '립비 금액'),
-                  React.createElement('input', {
-                    type: 'text',
-                    value: commonSettings.customReviewFee || '',
-                    onChange: (e) => setCommonSettings({...commonSettings, customReviewFee: e.target.value.replace(/[^0-9]/g, '')}),
-                    placeholder: '금액 입력',
-                    style: {
-                      width: '100%',
-                      padding: '0.5rem',
-                      border: '2px solid #3b82f6',
-                      borderRadius: '6px',
-                      fontSize: '0.9rem'
-                    }
-                  })
                 )
               ),
 
@@ -1902,7 +1389,7 @@ ${order.price}`;
               }, '⚡ 공통설정 모든 주문에 적용')
             ),
 
-            // 출력 설정 (새 버전)
+            // 출력 설정
             React.createElement('div', {
               style: {
                 background: '#f8fafc',
@@ -1919,352 +1406,268 @@ ${order.price}`;
                   marginBottom: '1rem',
                   color: '#2d3748'
                 }
-              }, '📋 출력 설정'),
+              }, '⚙️ 출력 설정'),
 
-              // 1. 폼 양식 입력
-              React.createElement('div', { style: { marginBottom: '1.5rem' } },
-                React.createElement('label', {
-                  style: {
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    color: '#475569',
-                    marginBottom: '0.5rem'
-                  }
-                }, '1. 폼 양식 입력'),
+              // 프리셋 관리
+              React.createElement('div', {
+                style: {
+                  background: 'white',
+                  border: '1px solid #e2e8f0',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginBottom: '1rem'
+                }
+              },
                 React.createElement('div', {
                   style: {
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    marginBottom: '0.5rem'
+                    marginBottom: '0.75rem'
                   }
                 },
-                  React.createElement('div'),
-                  Object.keys(learnedMappings).length > 0 && React.createElement('button', {
-                    onClick: () => {
-                      if (confirm(`학습된 ${Object.keys(learnedMappings).length}개 매핑을 모두 삭제하시겠습니까?`)) {
-                        setLearnedMappings({});
-                        localStorage.removeItem('learnedMappings');
-                        alert('✅ 학습 데이터가 초기화되었습니다');
-                      }
-                    },
+                  React.createElement('div', {
                     style: {
-                      fontSize: '0.75rem',
-                      padding: '0.25rem 0.5rem',
-                      background: '#fef2f2',
-                      border: '1px solid #fca5a5',
-                      borderRadius: '4px',
-                      color: '#991b1b',
+                      fontSize: '0.9rem',
+                      fontWeight: '600',
+                      color: '#64748b'
+                    }
+                  }, '💾 저장된 프리셋'),
+                  React.createElement('button', {
+                    onClick: () => setShowPresetDialog(!showPresetDialog),
+                    style: {
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
                       cursor: 'pointer'
                     }
-                  }, `📚 학습된 매핑 ${Object.keys(learnedMappings).length}개`)
+                  }, showPresetDialog ? '✕ 닫기' : '💾 현재 설정 저장')
                 ),
-                React.createElement('textarea', {
-                  value: formTemplate,
-                  onChange: (e) => setFormTemplate(e.target.value),
-                  placeholder: `폼 양식을 붙여넣으세요:
 
-예시 1 (라벨):
-이름:
-주문번호:
-아이디:
-
-예시 2 (슬래시):
-이름 / 전화번호 / 주소`,
+                // 저장 다이얼로그
+                showPresetDialog && React.createElement('div', {
                   style: {
-                    width: '100%',
-                    minHeight: '120px',
+                    background: '#f0fdf4',
+                    border: '1px solid #86efac',
+                    borderRadius: '6px',
                     padding: '0.75rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '8px',
-                    fontSize: '0.9rem',
-                    fontFamily: 'monospace',
-                    resize: 'vertical'
-                  }
-                }),
-                React.createElement('div', {
-                  style: {
-                    marginTop: '0.5rem',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem'
+                    marginBottom: '0.75rem'
                   }
                 },
                   React.createElement('input', {
-                    type: 'checkbox',
-                    checked: removeLabels,
-                    onChange: (e) => setRemoveLabels(e.target.checked),
-                    style: { cursor: 'pointer' }
-                  }),
-                  React.createElement('label', {
+                    type: 'text',
+                    value: presetName,
+                    onChange: (e) => setPresetName(e.target.value),
+                    placeholder: '프리셋 이름 (예: 쿠팡용, 네이버용)',
                     style: {
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
                       fontSize: '0.9rem',
-                      color: '#475569',
-                      cursor: 'pointer'
-                    },
-                    onClick: () => setRemoveLabels(!removeLabels)
-                  }, '라벨 제거 (값만 출력)')
-                )
-              ),
+                      marginBottom: '0.5rem'
+                    }
+                  }),
+                  React.createElement('button', {
+                    onClick: savePreset,
+                    style: {
+                      background: '#10b981',
+                      color: 'white',
+                      border: 'none',
+                      padding: '0.5rem 1rem',
+                      borderRadius: '6px',
+                      fontSize: '0.85rem',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      width: '100%'
+                    }
+                  }, '✅ 저장')
+                ),
 
-              // 2. 주문 선택
-              React.createElement('div', { style: { marginBottom: '1.5rem' } },
-                React.createElement('label', {
-                  style: {
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    color: '#475569',
-                    marginBottom: '0.75rem'
-                  }
-                }, `2. 출력할 주문 선택 (${selectedOrders.length}/${orders.length})`),
+                // 프리셋 목록
                 React.createElement('div', {
                   style: {
                     display: 'flex',
-                    gap: '1rem',
-                    flexWrap: 'wrap'
+                    flexWrap: 'wrap',
+                    gap: '0.5rem'
                   }
-                }, orders.map((order, index) =>
+                }, Object.keys(savedPresets).map(name =>
                   React.createElement('div', {
-                    key: order.id,
+                    key: name,
                     style: {
                       display: 'flex',
                       alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.75rem',
-                      background: selectedOrders.includes(index) ? '#dbeafe' : 'white',
-                      border: `2px solid ${selectedOrders.includes(index) ? '#3b82f6' : '#e2e8f0'}`,
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
-                    },
-                    onClick: () => toggleOrderSelection(index)
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      padding: '0.5rem 0.75rem',
+                      gap: '0.5rem'
+                    }
                   },
-                    React.createElement('input', {
-                      type: 'checkbox',
-                      checked: selectedOrders.includes(index),
-                      onChange: () => {},
-                      style: { cursor: 'pointer' }
-                    }),
-                    React.createElement('div', {
+                    React.createElement('button', {
+                      onClick: () => loadPreset(name),
                       style: {
-                        fontSize: '0.9rem',
+                        background: 'none',
+                        border: 'none',
+                        color: '#3b82f6',
+                        fontSize: '0.85rem',
                         fontWeight: '500',
-                        color: '#1e293b'
+                        cursor: 'pointer',
+                        padding: 0
                       }
-                    }, `주문 ${index + 1}`),
-                    React.createElement('div', {
+                    }, name),
+                    name !== '기본' && React.createElement('button', {
+                      onClick: () => deletePreset(name),
                       style: {
-                        fontSize: '0.8rem',
-                        color: '#64748b'
+                        background: 'none',
+                        border: 'none',
+                        color: '#ef4444',
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        padding: 0,
+                        marginLeft: '0.25rem'
                       }
-                    }, `(${PRESETS[order.person]?.name || '미설정'})`)
+                    }, '✕')
                   )
-                )),
-                React.createElement('button', {
-                  onClick: () => setSelectedOrders(orders.map((_, i) => i)),
-                  style: {
-                    marginTop: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer'
-                  }
-                }, '전체 선택')
+                ))
               ),
 
-              // 3. 데이터 편집 테이블
-              selectedOrders.length > 0 && formTemplate && React.createElement('div', { 
-                style: { 
-                  marginBottom: '1.5rem',
-                  marginTop: '1.5rem'
-                } 
+              React.createElement('div', {
+                style: {
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '1rem',
+                  marginBottom: '1rem'
+                }
               },
-                React.createElement('label', {
-                  style: {
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    color: '#475569',
-                    marginBottom: '0.75rem'
-                  }
-                }, '3. 데이터 편집'),
-                React.createElement('div', {
-                  style: {
-                    overflowX: 'auto',
-                    background: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '1rem'
-                  }
-                },
-                  parseFormTemplate(formTemplate).map(field => {
-                    const key = mapFieldToKey(field);
-                    const isUnknown = key === field; // 매핑을 모르는 경우
-                    
-                    return React.createElement('div', {
-                      key: field,
-                      style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        marginBottom: '0.75rem',
-                        paddingBottom: '0.75rem',
-                        borderBottom: '1px solid #f1f5f9'
-                      }
-                    },
-                      // 라벨명
-                      React.createElement('div', {
-                        style: {
-                          minWidth: '120px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          gap: '0.25rem'
-                        }
-                      },
-                        React.createElement('div', {
-                          style: {
-                            fontWeight: '500',
-                            fontSize: '0.9rem',
-                            color: isUnknown ? '#ef4444' : '#475569'
-                          }
-                        }, field),
-                        
-                        // 알 수 없는 라벨일 경우 학습 옵션 표시
-                        isUnknown && React.createElement('select', {
-                          onChange: (e) => {
-                            if (e.target.value) {
-                              saveLearnedMapping(field, e.target.value);
-                            }
-                          },
-                          style: {
-                            fontSize: '0.75rem',
-                            padding: '0.25rem',
-                            border: '1px solid #fca5a5',
-                            borderRadius: '4px',
-                            background: '#fef2f2',
-                            color: '#991b1b',
-                            cursor: 'pointer'
-                          }
-                        },
-                          React.createElement('option', { value: '' }, '항목 선택'),
-                          React.createElement('option', { value: 'name' }, '이름'),
-                          React.createElement('option', { value: 'receiver' }, '수취인'),
-                          React.createElement('option', { value: 'orderNumber' }, '주문번호'),
-                          React.createElement('option', { value: 'personId' }, '아이디'),
-                          React.createElement('option', { value: 'phone' }, '전화번호'),
-                          React.createElement('option', { value: 'phoneNoHyphen' }, '전화번호(하이픈없음)'),
-                          React.createElement('option', { value: 'address' }, '주소'),
-                          React.createElement('option', { value: 'price' }, '금액'),
-                          React.createElement('option', { value: 'site' }, '사이트'),
-                          React.createElement('option', { value: 'card' }, '카드'),
-                          React.createElement('option', { value: 'bank' }, '은행'),
-                          React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
-                          React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
-                          React.createElement('option', { value: 'deliveryType' }, '배송'),
-                          React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
-                          React.createElement('option', { value: 'reviewFee' }, '립비')
-                        )
-                      ),
-                      
-                      // 입력 칸들
-                      React.createElement('div', {
-                        style: {
-                          display: 'flex',
-                          gap: '0.5rem',
-                          flex: 1,
-                          flexWrap: 'wrap'
-                        }
-                      }, selectedOrders.map(orderIndex => {
-                        // 아이디 필드는 드롭다운으로
-                        if (key === 'personId') {
-                          const selectedSite = editableData[orderIndex]?.site || '';
-                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
-                          
-                          return React.createElement('select', {
-                            key: orderIndex,
-                            value: editableData[orderIndex]?.[key] || '',
-                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
-                            style: {
-                              flex: '1 1 200px',
-                              padding: '0.5rem',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer'
-                            }
-                          },
-                            currentSiteIds.map(id => 
-                              React.createElement('option', { key: id, value: id }, id)
-                            )
-                          );
-                        }
-                        
-                        // 나머지 필드는 텍스트 입력
-                        return React.createElement('input', {
-                          key: orderIndex,
-                          type: 'text',
-                          value: editableData[orderIndex]?.[key] || '',
-                          onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
-                          placeholder: `주문${orderIndex + 1}`,
-                          style: {
-                            flex: '1 1 200px',
-                            padding: '0.5rem',
-                            border: '1px solid #cbd5e1',
-                            borderRadius: '6px',
-                            fontSize: '0.85rem'
-                          }
-                        });
-                      }))
-                    );
-                  })
+                // 구분자
+                React.createElement('div', null,
+                  React.createElement('label', {
+                    style: {
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '0.5rem'
+                    }
+                  }, '슬래시 구분자'),
+                  React.createElement('select', {
+                    value: outputSettings.separator,
+                    onChange: (e) => setOutputSettings({...outputSettings, separator: e.target.value}),
+                    style: {
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem'
+                    }
+                  },
+                    React.createElement('option', { value: '/' }, '슬래시 (/)'),
+                    React.createElement('option', { value: '-' }, '대시 (-)'),
+                    React.createElement('option', { value: '|' }, '파이프 (|)'),
+                    React.createElement('option', { value: ',' }, '쉼표 (,)')
+                  )
+                ),
+
+                // 전화번호 포맷
+                React.createElement('div', null,
+                  React.createElement('label', {
+                    style: {
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '0.5rem'
+                    }
+                  }, '전화번호 하이픈'),
+                  React.createElement('select', {
+                    value: outputSettings.phoneFormat,
+                    onChange: (e) => setOutputSettings({...outputSettings, phoneFormat: e.target.value}),
+                    style: {
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem'
+                    }
+                  },
+                    React.createElement('option', { value: 'hyphen' }, '포함 (010-1234-5678)'),
+                    React.createElement('option', { value: 'none' }, '제거 (01012345678)')
+                  )
+                ),
+
+                // 계좌번호 포맷
+                React.createElement('div', null,
+                  React.createElement('label', {
+                    style: {
+                      display: 'block',
+                      fontSize: '0.85rem',
+                      fontWeight: '500',
+                      color: '#475569',
+                      marginBottom: '0.5rem'
+                    }
+                  }, '계좌번호 하이픈'),
+                  React.createElement('select', {
+                    value: outputSettings.accountFormat,
+                    onChange: (e) => setOutputSettings({...outputSettings, accountFormat: e.target.value}),
+                    style: {
+                      width: '100%',
+                      padding: '0.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '0.9rem'
+                    }
+                  },
+                    React.createElement('option', { value: 'hyphen' }, '포함 (110254-150254)'),
+                    React.createElement('option', { value: 'none' }, '제거 (110254150254)')
+                  )
                 )
               ),
 
-              // 4. 복사 버튼
-              React.createElement('div', {
-                style: {
-                  display: 'flex',
-                  justifyContent: 'center',
-                  gap: '0.75rem',
-                  flexWrap: 'wrap'
-                }
-              },
-                React.createElement('button', {
-                  onClick: copyOutputToClipboard,
+              // 커스텀 템플릿
+              React.createElement('div', null,
+                React.createElement('label', {
                   style: {
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '1rem 2rem',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                    display: 'block',
+                    fontSize: '0.85rem',
+                    fontWeight: '500',
+                    color: '#475569',
+                    marginBottom: '0.5rem'
                   }
-                }, '📋 복사하기'),
-                React.createElement('button', {
-                  onClick: sendToExtension,
+                }, '커스텀 템플릿 (선택사항)'),
+                React.createElement('textarea', {
+                  value: outputSettings.customTemplate,
+                  onChange: (e) => setOutputSettings({...outputSettings, customTemplate: e.target.value}),
+                  placeholder: `예시:
+{name}/{receiver}/{id}/{phone}/{address}
+또는
+이름: {name}
+연락처: {phone}
+주소: {address}
+
+사용 가능한 변수:
+{site}, {id}, {orderNumber}, {name}, {receiver}, {phone}, 
+{address}, {bank}, {account}, {accountHolder}, {price},
+{card}, {delivery}, {review}, {reviewFee}`,
                   style: {
-                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                    color: 'white',
-                    border: 'none',
-                    padding: '1rem 2rem',
-                    borderRadius: '8px',
-                    fontSize: '1rem',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)'
+                    width: '100%',
+                    minHeight: '100px',
+                    padding: '0.5rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    fontFamily: 'monospace',
+                    resize: 'vertical'
                   }
-                }, '🔌 익스텐션으로 전송')
+                })
               )
             ),
 
-            // 저장 / 초기화 버튼
+            // 저장 버튼
             React.createElement('div', {
               style: {
                 marginBottom: '1.5rem'
@@ -2277,27 +1680,83 @@ ${order.price}`;
                   marginBottom: '1rem',
                   color: '#2d3748'
                 }
-              }, '💾 데이터 관리'),
+              }, '📝 출력'),
               
               React.createElement('div', {
                 style: {
                   display: 'flex',
                   gap: '1rem',
+                  flexWrap: 'wrap',
                   justifyContent: 'center'
                 }
               },
+                React.createElement('button', {
+                  onClick: () => copyToClipboard('slash'),
+                  style: {
+                    background: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }
+                }, '📋 슬래시 형식 복사'),
+
+                React.createElement('button', {
+                  onClick: () => copyToClipboard('form'),
+                  style: {
+                    background: '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }
+                }, '📋 폼 양식 복사'),
+
+                React.createElement('button', {
+                  onClick: () => copyToClipboard('values'),
+                  style: {
+                    background: '#ec4899',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }
+                }, '📋 값만 복사'),
+
+                outputSettings.customTemplate && React.createElement('button', {
+                  onClick: () => copyToClipboard('custom'),
+                  style: {
+                    background: '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    padding: '0.75rem 1.5rem',
+                    borderRadius: '8px',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    cursor: 'pointer'
+                  }
+                }, '📋 커스텀 복사'),
+
                 React.createElement('button', {
                   onClick: saveToGoogleSheets,
                   style: {
                     background: '#10b981',
                     color: 'white',
                     border: 'none',
-                    padding: '1rem 2rem',
+                    padding: '0.75rem 1.5rem',
                     borderRadius: '8px',
-                    fontSize: '1rem',
+                    fontSize: '0.95rem',
                     fontWeight: '600',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                    cursor: 'pointer'
                   }
                 }, '💾 구글시트 저장'),
 
@@ -2307,12 +1766,11 @@ ${order.price}`;
                     background: '#ef4444',
                     color: 'white',
                     border: 'none',
-                    padding: '1rem 2rem',
+                    padding: '0.75rem 1.5rem',
                     borderRadius: '8px',
-                    fontSize: '1rem',
+                    fontSize: '0.95rem',
                     fontWeight: '600',
-                    cursor: 'pointer',
-                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                    cursor: 'pointer'
                   }
                 }, '🗑️ 전체 초기화')
               )
