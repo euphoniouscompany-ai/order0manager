@@ -585,7 +585,7 @@
             account: preset.account,
             accountWithHyphen: preset.accountWithHyphen,
             accountHolder: preset.accountHolder || "이해운",
-            
+            bank_account_full: `${preset.bank} ${preset.accountWithHyphen} ${preset.accountHolder || \"이해운\"}`,
             // 설정
             card: order.card,
             deliveryType: order.deliveryType,
@@ -677,7 +677,8 @@
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
           '구입 금액': 'price',
-          '구입금액': 'price'
+          '구입금액': 'price',
+          '계좌번호(은행 계좌번호 예금주)': 'bank_account_full'
         };
         
         return mappings[fieldName] || fieldName;
