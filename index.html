@@ -206,7 +206,14 @@
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
                 if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
-                if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
+                if (config.reviewFees && config.reviewFees.length > 0) {
+                  const fees = config.reviewFees.map(String);
+                  // "0"이 없으면 추가
+                  if (!fees.includes('0')) {
+                    fees.unshift('0');
+                  }
+                  setREVIEW_FEES(fees);
+                }
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
                   setLearnedMappings(config.labelMappings);
