@@ -1478,8 +1478,9 @@ ${order.price}`;
                     }, 
                       // 데이터 테이블의 사이트 정보로 아이디 목록 결정
                       (() => {
-                       // orderIndex를 사용하여 실제 주문 데이터(orders)에서 사이트를 가져와야 합니다.
-                       const currentSite = orders[orderIndex]?.site || ''; 
+
+                       // 현재 행의 index(orderIndex)를 사용하여 해당 주문의 사이트를 정확히 가져옵니다.
+                       const currentSite = editableData[orderIndex]?.site || '';
                        const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
                         console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
                         return currentSiteIds.map(id => 
