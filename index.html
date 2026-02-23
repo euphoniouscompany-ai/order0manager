@@ -489,7 +489,18 @@
         const newOrders = [...orders];
         newOrders[index][field] = value;
         if (field === 'person') {
-          newOrders[index].personId = PRESETS[value].coupangId;
+          const currentSite = newOrders[index].site;
+          // 이름별 매핑 데이터에서 현재 사이트에 맞는 아이디 추출, 없으면 쿠팡아이디를 기본값으로
+          newOrders[index].personId = (NAME_ID_MAPPINGS[value] && NAME_ID_MAPPINGS[value][currentSite]) 
+            ? NAME_ID_MAPPINGS[value][currentSite] 
+            : PRESETS[value].coupangId;
+        }
+        // 사이트를 변경했을 때도 아이디가 바뀌도록 추가
+        if (field === 'site') {
+          const currentPerson = newOrders[index].person;
+          if (NAME_ID_MAPPINGS[currentPerson] && NAME_ID_MAPPINGS[currentPerson][value]) {
+            newOrders[index].personId = NAME_ID_MAPPINGS[currentPerson][value];
+          }
         }
         setOrders(newOrders);
       };
