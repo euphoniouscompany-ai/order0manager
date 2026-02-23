@@ -2103,6 +2103,11 @@ ${order.price}`;
                 style: { 
                   marginBottom: '1.5rem',
                   marginTop: '1.5rem'
+                } // 3. 데이터 편집 테이블
+              selectedOrders.length > 0 && formTemplate && React.createElement('div', { 
+                style: { 
+                  marginBottom: '1.5rem',
+                  marginTop: '1.5rem'
                 } 
               },
                 React.createElement('label', {
@@ -2125,7 +2130,7 @@ ${order.price}`;
                 },
                   parseFormTemplate(formTemplate).map(field => {
                     const key = mapFieldToKey(field);
-                    const isUnknown = key === field; // 매핑을 모르는 경우
+                    const isUnknown = key === field;
                     
                     return React.createElement('div', {
                       key: field,
@@ -2138,7 +2143,7 @@ ${order.price}`;
                         borderBottom: '1px solid #f1f5f9'
                       }
                     },
-                      // 라벨명
+                      // 라벨명 영역
                       React.createElement('div', {
                         style: {
                           minWidth: '120px',
@@ -2155,13 +2160,8 @@ ${order.price}`;
                           }
                         }, field),
                         
-                        // 알 수 없는 라벨일 경우 학습 옵션 표시
                         isUnknown && React.createElement('select', {
-                          onChange: (e) => {
-                            if (e.target.value) {
-                              saveLearnedMapping(field, e.target.value);
-                            }
-                          },
+                          onChange: (e) => e.target.value && saveLearnedMapping(field, e.target.value),
                           style: {
                             fontSize: '0.75rem',
                             padding: '0.25rem',
@@ -2192,7 +2192,7 @@ ${order.price}`;
                         )
                       ),
                       
-                      // 입력 칸들
+                      // 입력 칸들 (이 루프 안에서 사이트별 아이디를 정확히 가져옵니다)
                       React.createElement('div', {
                         style: {
                           display: 'flex',
@@ -2201,43 +2201,29 @@ ${order.price}`;
                           flexWrap: 'wrap'
                         }
                       }, selectedOrders.map(orderIndex => {
-// [1261번 라인 부근부터 교체 시작]
-            // 입력 칸들
-            React.createElement('div', {
-              style: {
-                display: 'flex',
-                gap: '0.5rem',
-                flex: 1,
-                flexWrap: 'wrap'
-              }
-            }, selectedOrders.map(orderIndex => {
-              // 행마다 사이트 정보를 개별적으로 가져와야 합니다.
-              // orderIndex가 이 중괄호 { } 안에서만 정의되기 때문입니다.
-              const currentSite = editableData[orderIndex]?.site || '';
-              const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
-              
-              // 아이디 필드는 드롭다운으로
-              if (key === 'personId') {
-                return React.createElement('select', {
-                  key: orderIndex,
-                  value: editableData[orderIndex]?.[key] || '',
-                  onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
-                  style: {
-                    flex: '1 1 200px',
-                    padding: '0.5rem',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer'
-                  }
-                },
-                  currentSiteIds.map(id => 
-                    React.createElement('option', { key: id, value: id }, id)
-                  )
-                );
-              }
+                        const currentSite = editableData[orderIndex]?.site || '';
+                        const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
                         
-                        // 나머지 필드는 텍스트 입력
+                        if (key === 'personId') {
+                          return React.createElement('select', {
+                            key: orderIndex,
+                            value: editableData[orderIndex]?.[key] || '',
+                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
+                            style: {
+                              flex: '1 1 200px',
+                              padding: '0.5rem',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }
+                          },
+                            currentSiteIds.map(id => 
+                              React.createElement('option', { key: id, value: id }, id)
+                            )
+                          );
+                        }
+                        
                         return React.createElement('input', {
                           key: orderIndex,
                           type: 'text',
