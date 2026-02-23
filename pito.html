@@ -2201,29 +2201,41 @@ ${order.price}`;
                           flexWrap: 'wrap'
                         }
                       }, selectedOrders.map(orderIndex => {
-                        // 아이디 필드는 드롭다운으로
-                        if (key === 'personId') {
-                          const selectedSite = editableData[orderIndex]?.site || '';
-                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
-                          
-                          return React.createElement('select', {
-                            key: orderIndex,
-                            value: editableData[orderIndex]?.[key] || '',
-                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
-                            style: {
-                              flex: '1 1 200px',
-                              padding: '0.5rem',
-                              border: '1px solid #cbd5e1',
-                              borderRadius: '6px',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer'
-                            }
-                          },
-                            currentSiteIds.map(id => 
-                              React.createElement('option', { key: id, value: id }, id)
-                            )
-                          );
-                        }
+// [1261번 라인 부근부터 교체 시작]
+            // 입력 칸들
+            React.createElement('div', {
+              style: {
+                display: 'flex',
+                gap: '0.5rem',
+                flex: 1,
+                flexWrap: 'wrap'
+              }
+            }, selectedOrders.map(orderIndex => {
+              // 행마다 사이트 정보를 개별적으로 가져와야 합니다.
+              // orderIndex가 이 중괄호 { } 안에서만 정의되기 때문입니다.
+              const currentSite = editableData[orderIndex]?.site || '';
+              const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
+              
+              // 아이디 필드는 드롭다운으로
+              if (key === 'personId') {
+                return React.createElement('select', {
+                  key: orderIndex,
+                  value: editableData[orderIndex]?.[key] || '',
+                  onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
+                  style: {
+                    flex: '1 1 200px',
+                    padding: '0.5rem',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
+                  }
+                },
+                  currentSiteIds.map(id => 
+                    React.createElement('option', { key: id, value: id }, id)
+                  )
+                );
+              }
                         
                         // 나머지 필드는 텍스트 입력
                         return React.createElement('input', {
