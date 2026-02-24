@@ -1924,7 +1924,7 @@ ${order.price}`;
               }, '⚡ 공통설정 모든 주문에 적용')
             ),
 
-     // 출력 설정 (새 버전)
+     // 출력 설정 (// 출력 설정 (새 버전)
             React.createElement('div', {
               style: {
                 background: '#f8fafc',
@@ -2035,81 +2035,48 @@ ${order.price}`;
                 }, `2. 출력할 주문 선택 (${selectedOrders.length}/${orders.length})`),
                 React.createElement('div', {
                   style: {
-                    display: 'flex',
-                    gap: '1rem',
-                    flexWrap: 'wrap'
+                    display: 'flex', gap: '1rem', flexWrap: 'wrap'
                   }
                 }, orders.map((order, index) =>
                   React.createElement('div', {
                     key: order.id,
                     style: {
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.75rem',
+                      display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem',
                       background: selectedOrders.includes(index) ? '#dbeafe' : 'white',
                       border: `2px solid ${selectedOrders.includes(index) ? '#3b82f6' : '#e2e8f0'}`,
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s'
+                      borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s'
                     },
                     onClick: () => toggleOrderSelection(index)
                   },
                     React.createElement('input', {
-                      type: 'checkbox',
-                      checked: selectedOrders.includes(index),
-                      onChange: () => {},
-                      style: { cursor: 'pointer' }
+                      type: 'checkbox', checked: selectedOrders.includes(index),
+                      onChange: () => {}, style: { cursor: 'pointer' }
                     }),
-                    React.createElement('div', {
-                      style: {
-                        fontSize: '0.9rem',
-                        fontWeight: '500',
-                        color: '#1e293b'
-                      }
-                    }, `주문 ${index + 1}`),
-                    React.createElement('div', {
-                      style: {
-                        fontSize: '0.8rem',
-                        color: '#64748b'
-                      }
-                    }, `(${PRESETS[order.person]?.name || '미설정'})`)
+                    React.createElement('div', { style: { fontSize: '0.9rem', fontWeight: '500', color: '#1e293b' } }, `주문 ${index + 1}`),
+                    React.createElement('div', { style: { fontSize: '0.8rem', color: '#64748b' } }, `(${PRESETS[order.person]?.name || '미설정'})`)
                   )
                 )),
                 React.createElement('button', {
                   onClick: () => setSelectedOrders(orders.map((_, i) => i)),
                   style: {
-                    marginTop: '0.5rem',
-                    padding: '0.5rem 1rem',
-                    background: '#f1f5f9',
-                    border: '1px solid #cbd5e1',
-                    borderRadius: '6px',
-                    fontSize: '0.85rem',
-                    cursor: 'pointer'
+                    marginTop: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9',
+                    border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer'
                   }
                 }, '전체 선택')
-              ),
+              ), // ← 여기에 쉼표가 없어서 image_b81980 에러가 났던 것입니다.
 
-              // 3. 데이터 편집 테이블 (여기에 각 행마다 다른 사이트 아이디 로직을 넣었습니다)
+              // 3. 데이터 편집 테이블
               selectedOrders.length > 0 && formTemplate && React.createElement('div', { 
                 style: { marginBottom: '1.5rem', marginTop: '1.5rem' } 
               },
                 React.createElement('label', {
                   style: {
-                    display: 'block',
-                    fontSize: '0.95rem',
-                    fontWeight: '600',
-                    color: '#475569',
-                    marginBottom: '0.75rem'
+                    display: 'block', fontSize: '0.95rem', fontWeight: '600', color: '#475569', marginBottom: '0.75rem'
                   }
                 }, '3. 데이터 편집'),
                 React.createElement('div', {
                   style: {
-                    overflowX: 'auto',
-                    background: 'white',
-                    border: '1px solid #e2e8f0',
-                    borderRadius: '8px',
-                    padding: '1rem'
+                    overflowX: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem'
                   }
                 },
                   parseFormTemplate(formTemplate).map(field => {
@@ -2119,14 +2086,11 @@ ${order.price}`;
                     return React.createElement('div', {
                       key: field,
                       style: {
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '1rem',
-                        marginBottom: '0.75rem',
-                        paddingBottom: '0.75rem',
-                        borderBottom: '1px solid #f1f5f9'
+                        display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem',
+                        paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9'
                       }
                     },
+                      // 라벨명 영역
                       React.createElement('div', {
                         style: { minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }
                       },
@@ -2148,9 +2112,11 @@ ${order.price}`;
                           React.createElement('option', { value: 'site' }, '사이트')
                         )
                       ),
+                      // 입력 칸들 영역
                       React.createElement('div', {
                         style: { display: 'flex', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }
                       }, selectedOrders.map(orderIndex => {
+                        // 여기서 각 행(orderIndex)의 사이트를 직접 참조합니다.
                         const currentSite = editableData[orderIndex]?.site || '';
                         const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
                         
