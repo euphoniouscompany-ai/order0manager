@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
-<head> 
+<head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>주문 관리 시스템</title>
@@ -489,18 +489,7 @@
         const newOrders = [...orders];
         newOrders[index][field] = value;
         if (field === 'person') {
-          const currentSite = newOrders[index].site;
-          // 이름별 매핑 데이터에서 현재 사이트에 맞는 아이디 추출, 없으면 쿠팡아이디를 기본값으로
-          newOrders[index].personId = (NAME_ID_MAPPINGS[value] && NAME_ID_MAPPINGS[value][currentSite]) 
-            ? NAME_ID_MAPPINGS[value][currentSite] 
-            : PRESETS[value].coupangId;
-        }
-        // 사이트를 변경했을 때도 아이디가 바뀌도록 추가
-        if (field === 'site') {
-          const currentPerson = newOrders[index].person;
-          if (NAME_ID_MAPPINGS[currentPerson] && NAME_ID_MAPPINGS[currentPerson][value]) {
-            newOrders[index].personId = NAME_ID_MAPPINGS[currentPerson][value];
-          }
+          newOrders[index].personId = PRESETS[value].coupangId;
         }
         setOrders(newOrders);
       };
@@ -1478,10 +1467,8 @@ ${order.price}`;
                     }, 
                       // 데이터 테이블의 사이트 정보로 아이디 목록 결정
                       (() => {
-
-                       // 현재 행의 index(orderIndex)를 사용하여 해당 주문의 사이트를 정확히 가져옵니다.
-                       const currentSite = editableData[orderIndex]?.site || '';
-                       const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
+                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
+                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
                         console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
@@ -1924,7 +1911,7 @@ ${order.price}`;
               }, '⚡ 공통설정 모든 주문에 적용')
             ),
 
-     // 출력 설정 (// 출력 설정 (새 버전)
+            // 출력 설정 (새 버전)
             React.createElement('div', {
               style: {
                 background: '#f8fafc',
@@ -1985,7 +1972,15 @@ ${order.price}`;
                 React.createElement('textarea', {
                   value: formTemplate,
                   onChange: (e) => setFormTemplate(e.target.value),
-                  placeholder: '폼 양식을 붙여넣으세요...',
+                  placeholder: `폼 양식을 붙여넣으세요:
+
+예시 1 (라벨):
+이름:
+주문번호:
+아이디:
+
+예시 2 (슬래시):
+이름 / 전화번호 / 주소`,
                   style: {
                     width: '100%',
                     minHeight: '120px',
@@ -2035,71 +2030,134 @@ ${order.price}`;
                 }, `2. 출력할 주문 선택 (${selectedOrders.length}/${orders.length})`),
                 React.createElement('div', {
                   style: {
-                    display: 'flex', gap: '1rem', flexWrap: 'wrap'
+                    display: 'flex',
+                    gap: '1rem',
+                    flexWrap: 'wrap'
                   }
                 }, orders.map((order, index) =>
                   React.createElement('div', {
                     key: order.id,
                     style: {
-                      display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      padding: '0.75rem',
                       background: selectedOrders.includes(index) ? '#dbeafe' : 'white',
                       border: `2px solid ${selectedOrders.includes(index) ? '#3b82f6' : '#e2e8f0'}`,
-                      borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s'
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
                     },
                     onClick: () => toggleOrderSelection(index)
                   },
                     React.createElement('input', {
-                      type: 'checkbox', checked: selectedOrders.includes(index),
-                      onChange: () => {}, style: { cursor: 'pointer' }
+                      type: 'checkbox',
+                      checked: selectedOrders.includes(index),
+                      onChange: () => {},
+                      style: { cursor: 'pointer' }
                     }),
-                    React.createElement('div', { style: { fontSize: '0.9rem', fontWeight: '500', color: '#1e293b' } }, `주문 ${index + 1}`),
-                    React.createElement('div', { style: { fontSize: '0.8rem', color: '#64748b' } }, `(${PRESETS[order.person]?.name || '미설정'})`)
+                    React.createElement('div', {
+                      style: {
+                        fontSize: '0.9rem',
+                        fontWeight: '500',
+                        color: '#1e293b'
+                      }
+                    }, `주문 ${index + 1}`),
+                    React.createElement('div', {
+                      style: {
+                        fontSize: '0.8rem',
+                        color: '#64748b'
+                      }
+                    }, `(${PRESETS[order.person]?.name || '미설정'})`)
                   )
                 )),
                 React.createElement('button', {
                   onClick: () => setSelectedOrders(orders.map((_, i) => i)),
                   style: {
-                    marginTop: '0.5rem', padding: '0.5rem 1rem', background: '#f1f5f9',
-                    border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', cursor: 'pointer'
+                    marginTop: '0.5rem',
+                    padding: '0.5rem 1rem',
+                    background: '#f1f5f9',
+                    border: '1px solid #cbd5e1',
+                    borderRadius: '6px',
+                    fontSize: '0.85rem',
+                    cursor: 'pointer'
                   }
                 }, '전체 선택')
-              ), // ← 여기에 쉼표가 없어서 image_b81980 에러가 났던 것입니다.
+              ),
 
               // 3. 데이터 편집 테이블
               selectedOrders.length > 0 && formTemplate && React.createElement('div', { 
-                style: { marginBottom: '1.5rem', marginTop: '1.5rem' } 
+                style: { 
+                  marginBottom: '1.5rem',
+                  marginTop: '1.5rem'
+                } 
               },
                 React.createElement('label', {
                   style: {
-                    display: 'block', fontSize: '0.95rem', fontWeight: '600', color: '#475569', marginBottom: '0.75rem'
+                    display: 'block',
+                    fontSize: '0.95rem',
+                    fontWeight: '600',
+                    color: '#475569',
+                    marginBottom: '0.75rem'
                   }
                 }, '3. 데이터 편집'),
                 React.createElement('div', {
                   style: {
-                    overflowX: 'auto', background: 'white', border: '1px solid #e2e8f0', borderRadius: '8px', padding: '1rem'
+                    overflowX: 'auto',
+                    background: 'white',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '8px',
+                    padding: '1rem'
                   }
                 },
                   parseFormTemplate(formTemplate).map(field => {
                     const key = mapFieldToKey(field);
-                    const isUnknown = key === field;
+                    const isUnknown = key === field; // 매핑을 모르는 경우
                     
                     return React.createElement('div', {
                       key: field,
                       style: {
-                        display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.75rem',
-                        paddingBottom: '0.75rem', borderBottom: '1px solid #f1f5f9'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '1rem',
+                        marginBottom: '0.75rem',
+                        paddingBottom: '0.75rem',
+                        borderBottom: '1px solid #f1f5f9'
                       }
                     },
-                      // 라벨명 영역
+                      // 라벨명
                       React.createElement('div', {
-                        style: { minWidth: '120px', display: 'flex', flexDirection: 'column', gap: '0.25rem' }
+                        style: {
+                          minWidth: '120px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '0.25rem'
+                        }
                       },
                         React.createElement('div', {
-                          style: { fontWeight: '500', fontSize: '0.9rem', color: isUnknown ? '#ef4444' : '#475569' }
+                          style: {
+                            fontWeight: '500',
+                            fontSize: '0.9rem',
+                            color: isUnknown ? '#ef4444' : '#475569'
+                          }
                         }, field),
+                        
+                        // 알 수 없는 라벨일 경우 학습 옵션 표시
                         isUnknown && React.createElement('select', {
-                          onChange: (e) => e.target.value && saveLearnedMapping(field, e.target.value),
-                          style: { fontSize: '0.75rem', padding: '0.25rem', border: '1px solid #fca5a5', borderRadius: '4px', background: '#fef2f2', color: '#991b1b', cursor: 'pointer' }
+                          onChange: (e) => {
+                            if (e.target.value) {
+                              saveLearnedMapping(field, e.target.value);
+                            }
+                          },
+                          style: {
+                            fontSize: '0.75rem',
+                            padding: '0.25rem',
+                            border: '1px solid #fca5a5',
+                            borderRadius: '4px',
+                            background: '#fef2f2',
+                            color: '#991b1b',
+                            cursor: 'pointer'
+                          }
                         },
                           React.createElement('option', { value: '' }, '항목 선택'),
                           React.createElement('option', { value: 'name' }, '이름'),
@@ -2107,37 +2165,67 @@ ${order.price}`;
                           React.createElement('option', { value: 'orderNumber' }, '주문번호'),
                           React.createElement('option', { value: 'personId' }, '아이디'),
                           React.createElement('option', { value: 'phone' }, '전화번호'),
+                          React.createElement('option', { value: 'phoneNoHyphen' }, '전화번호(하이픈없음)'),
                           React.createElement('option', { value: 'address' }, '주소'),
                           React.createElement('option', { value: 'price' }, '금액'),
-                          React.createElement('option', { value: 'site' }, '사이트')
+                          React.createElement('option', { value: 'site' }, '사이트'),
+                          React.createElement('option', { value: 'card' }, '카드'),
+                          React.createElement('option', { value: 'bank' }, '은행'),
+                          React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
+                          React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
+                          React.createElement('option', { value: 'deliveryType' }, '배송'),
+                          React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
+                          React.createElement('option', { value: 'reviewFee' }, '립비')
                         )
                       ),
-                      // 입력 칸들 영역
+                      
+                      // 입력 칸들
                       React.createElement('div', {
-                        style: { display: 'flex', gap: '0.5rem', flex: 1, flexWrap: 'wrap' }
+                        style: {
+                          display: 'flex',
+                          gap: '0.5rem',
+                          flex: 1,
+                          flexWrap: 'wrap'
+                        }
                       }, selectedOrders.map(orderIndex => {
-                        // 여기서 각 행(orderIndex)의 사이트를 직접 참조합니다.
-                        const currentSite = editableData[orderIndex]?.site || '';
-                        const currentSiteIds = SITE_IDS[currentSite] || IDS || ['직접입력'];
-                        
+                        // 아이디 필드는 드롭다운으로
                         if (key === 'personId') {
+                          const selectedSite = editableData[orderIndex]?.site || '';
+                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
+                          
                           return React.createElement('select', {
                             key: orderIndex,
                             value: editableData[orderIndex]?.[key] || '',
                             onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
-                            style: { flex: '1 1 200px', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }
+                            style: {
+                              flex: '1 1 200px',
+                              padding: '0.5rem',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }
                           },
-                            currentSiteIds.map(id => React.createElement('option', { key: id, value: id }, id))
+                            currentSiteIds.map(id => 
+                              React.createElement('option', { key: id, value: id }, id)
+                            )
                           );
                         }
                         
+                        // 나머지 필드는 텍스트 입력
                         return React.createElement('input', {
                           key: orderIndex,
                           type: 'text',
                           value: editableData[orderIndex]?.[key] || '',
                           onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
                           placeholder: `주문${orderIndex + 1}`,
-                          style: { flex: '1 1 200px', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem' }
+                          style: {
+                            flex: '1 1 200px',
+                            padding: '0.5rem',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            fontSize: '0.85rem'
+                          }
                         });
                       }))
                     );
@@ -2145,32 +2233,96 @@ ${order.price}`;
                 )
               ),
 
-              // 4. 복사 버튼 영역
+              // 4. 복사 버튼
               React.createElement('div', {
-                style: { display: 'flex', justifyContent: 'center', gap: '0.75rem', flexWrap: 'wrap' }
+                style: {
+                  display: 'flex',
+                  justifyContent: 'center',
+                  gap: '0.75rem',
+                  flexWrap: 'wrap'
+                }
               },
                 React.createElement('button', {
                   onClick: copyOutputToClipboard,
-                  style: { background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)' }
+                  style: {
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '1rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
+                  }
                 }, '📋 복사하기'),
                 React.createElement('button', {
                   onClick: sendToExtension,
-                  style: { background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)' }
+                  style: {
+                    background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                    color: 'white',
+                    border: 'none',
+                    padding: '1rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(245, 158, 11, 0.4)'
+                  }
                 }, '🔌 익스텐션으로 전송')
               )
             ),
 
-            // 저장 / 초기화 버튼 (섹션 끝)
-            React.createElement('div', { style: { marginBottom: '1.5rem' } },
-              React.createElement('h2', { style: { fontSize: '1.3rem', fontWeight: '600', marginBottom: '1rem', color: '#2d3748' } }, '💾 데이터 관리'),
-              React.createElement('div', { style: { display: 'flex', gap: '1rem', justifyContent: 'center' } },
+            // 저장 / 초기화 버튼
+            React.createElement('div', {
+              style: {
+                marginBottom: '1.5rem'
+              }
+            },
+              React.createElement('h2', {
+                style: {
+                  fontSize: '1.3rem',
+                  fontWeight: '600',
+                  marginBottom: '1rem',
+                  color: '#2d3748'
+                }
+              }, '💾 데이터 관리'),
+              
+              React.createElement('div', {
+                style: {
+                  display: 'flex',
+                  gap: '1rem',
+                  justifyContent: 'center'
+                }
+              },
                 React.createElement('button', {
                   onClick: saveToGoogleSheets,
-                  style: { background: '#10b981', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)' }
+                  style: {
+                    background: '#10b981',
+                    color: 'white',
+                    border: 'none',
+                    padding: '1rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.4)'
+                  }
                 }, '💾 구글시트 저장'),
+
                 React.createElement('button', {
                   onClick: resetAllOrders,
-                  style: { background: '#ef4444', color: 'white', border: 'none', padding: '1rem 2rem', borderRadius: '8px', fontSize: '1rem', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)' }
+                  style: {
+                    background: '#ef4444',
+                    color: 'white',
+                    border: 'none',
+                    padding: '1rem 2rem',
+                    borderRadius: '8px',
+                    fontSize: '1rem',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                  }
                 }, '🗑️ 전체 초기화')
               )
             )
