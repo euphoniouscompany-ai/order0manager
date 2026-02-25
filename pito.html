@@ -253,8 +253,8 @@
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
-                  setLearnedMappings(config.labelMappings);
-                  console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
+                  setLabelMappingsFromSheet(config.labelMappings);
+                  console.log('✅ 라벨 매핑 로드됨 (시트):', config.labelMappings);
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
@@ -761,6 +761,7 @@
         const saved = localStorage.getItem('learnedMappings');
         return saved ? JSON.parse(saved) : {};
       });
+      const [labelMappingsFromSheet, setLabelMappingsFromSheet] = useState({});
 
       const mapFieldToKey = (fieldName) => {
         // 먼저 학습된 매핑 확인
@@ -2308,6 +2309,7 @@ ${order.price}`;
                           React.createElement('option', { value: 'receiver' }, '수취인'),
                           React.createElement('option', { value: 'orderNumber' }, '주문번호'),
                           React.createElement('option', { value: 'personId' }, '아이디'),
+                          React.createElement('option', { value: 'nickname' }, '닉네임'),
                           React.createElement('option', { value: 'phone' }, '전화번호'),
                           React.createElement('option', { value: 'phoneNoHyphen' }, '전화번호(하이픈없음)'),
                           React.createElement('option', { value: 'address' }, '주소'),
