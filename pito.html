@@ -204,6 +204,7 @@
                       address: person.address,
                       coupangId: personIdMap['쿠팡'] || '',
                       naverId: personIdMap['네이버'] || '',
+                      nickname: person.nickname || person.닉네임 || personIdMap['네이버'] || '',
                       bank: person.bank || "신한은행",
                       account: account.replace(/-/g, ''),
                       accountWithHyphen: accountWithHyphen,
@@ -887,6 +888,14 @@
                 if (key === '__BANK_ACCOUNT_HOLDER__') {
                   return `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
                 }
+                if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
+                  return `${data.bank || ''} ${data.account || ''} ${data.accountHolder || ''}`.trim();
+                }
+                
+                // 닉네임 특수 처리
+                if (key === 'nickname') {
+                  return data.nickname || data.naverId || data.personId || '';
+                }
                 
                 return data[key] || '';
               });
@@ -913,8 +922,20 @@
                     return `${fieldName}: ${value}`;
                   }
                 }
+                if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
+                  const value = `${data.bank || ''} ${data.account || ''} ${data.accountHolder || ''}`.trim();
+                  if (removeLabels) {
+                    return value;
+                  } else {
+                    return `${fieldName}: ${value}`;
+                  }
+                }
                 
-                const value = data[key] || '';
+                // 닉네임 특수 처리
+                let value = data[key] || '';
+                if (key === 'nickname') {
+                  value = data.nickname || data.naverId || data.personId || '';
+                }
                 
                 if (removeLabels) {
                   return value;
@@ -2511,6 +2532,73 @@ ${order.price}`;
                     boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
                   }
                 }, '🗑️ 전체 초기화')
+              ),
+              
+              // 라벨 관리 UI
+              showLabelManager && React.createElement('div', {
+                style: {
+                  marginTop: '2rem',
+                  padding: '1.5rem',
+                  backgroundColor: 'white',
+                  borderRadius: '12px',
+                  boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+                }
+              },
+                React.createElement('h3', {
+                  style: { marginBottom: '1rem', fontSize: '1.25rem', fontWeight: 'bold', color: '#1f2937' }
+                }, '📋 라벨 매핑 관리'),
+                
+                React.createElement('div', {
+                  style: { maxHeight: '400px', overflowY: 'auto', marginBottom: '1.5rem', border: '1px solid #e5e7eb', borderRadius: '8px' }
+                },
+                  Object.entries(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet).length === 0 ?
+                    React.createElement('div', { style: { padding: '2rem', textAlign: 'center', color: '#9ca3af' } }, 'review-setting에서 라벨 불러오는 중...') :
+                    Object.entries(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet).map(([label, key]) =>
+                      React.createElement('div', {
+                        key: label,
+                        style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid #f3f4f6' }
+                      },
+                        React.createElement('div', null,
+                          React.createElement('span', { style: { fontWeight: '600', color: '#374151', marginRight: '0.5rem' } }, label),
+                          ' → ',
+                          React.createElement('code', { style: { padding: '0.25rem 0.5rem', backgroundColor: '#eff6ff', color: '#3b82f6', borderRadius: '4px', fontSize: '0.875rem' } }, key)
+                        ),
+                        React.createElement('button', {
+                          onClick: () => {
+                            if (confirm('"' + label + '" 라벨을 삭제하시겠습니까?')) {
+                              const updated = {...(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet)};
+                              delete updated[label];
+                              setEditedLabels(updated);
+                            }
+                          },
+                          style: { padding: '0.375rem 0.75rem', fontSize: '0.875rem', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' }
+                        }, '삭제')
+                      )
+                    )
+                ),
+                
+                React.createElement('div', { style: { display: 'flex', gap: '0.75rem', marginBottom: '1rem' } },
+                  React.createElement('input', { id: 'newLabelName', type: 'text', placeholder: '라벨명 (예: 별명)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
+                  React.createElement('input', { id: 'newLabelKey', type: 'text', placeholder: '매핑키 (예: nickname)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
+                  React.createElement('button', {
+                    onClick: () => {
+                      const name = document.getElementById('newLabelName').value.trim();
+                      const key = document.getElementById('newLabelKey').value.trim();
+                      if (!name || !key) { alert('라벨명과 매핑키를 모두 입력하세요'); return; }
+                      const updated = {...(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet), [name]: key};
+                      setEditedLabels(updated);
+                      document.getElementById('newLabelName').value = '';
+                      document.getElementById('newLabelKey').value = '';
+                      alert('✅ "' + name + '" 추가됨');
+                    },
+                    style: { padding: '0.75rem 1.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }
+                  }, '➕ 추가')
+                ),
+                
+                Object.keys(editedLabels).length > 0 && React.createElement('button', {
+                  onClick: saveLabelsToSheet,
+                  style: { width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }
+                }, '💾 시트에 저장 (' + Object.keys(editedLabels).length + '개)')
               )
             )
           )
