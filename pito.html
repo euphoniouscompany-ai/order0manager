@@ -39,7 +39,8 @@
         naverId: "iamandy@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       },
       "지영신": {
         name: "지영신",
@@ -50,7 +51,8 @@
         naverId: "dudtls00114@gmail.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       },
       "정동신": {
         name: "정동신",
@@ -61,7 +63,8 @@
         naverId: "wjdehdtls@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       },
       "전동열": {
         name: "전동열",
@@ -72,7 +75,8 @@
         naverId: "iamandy11@gmail.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       },
       "장샛별": {
         name: "장샛별",
@@ -83,7 +87,8 @@
         naverId: "zzang9227@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       },
       "이해림": {
         name: "이해림",
@@ -94,7 +99,8 @@
         naverId: "pitosungy@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254"
+        accountWithHyphen: "110254-150254",
+        accountHolder: "이해운"
       }
     };
 
@@ -137,18 +143,12 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
-        // 기본값으로 바로 시작 (Apps Script 로딩 스킵)
-        setLoading(false);
-        
-        // 백그라운드에서 로드 시도 (실패해도 무시)
+        // review-setting에서 즉시 로드
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
-        // 일단 기본값으로 바로 시작
-        setLoading(false);
-        
-        // 백그라운드에서 시트 로딩 시도
+        // 시트 로딩 시도
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiJTCenXmOvhpGwpf62SpHHtrzgJJMpR7LPH3Bff19p2AU1it-abgQBrNs-OalDVAU/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
@@ -177,6 +177,9 @@
                   const newPresets = {};
                   config.people.forEach(person => {
                     const siteIds = config.nameIdMappings[person.name] || {};
+                    const account = person.account || "110254150254";
+                    const accountWithHyphen = account.includes('-') ? account : account.replace(/(\d{6})(\d+)/, '$1-$2');
+                    
                     newPresets[person.name] = {
                       name: person.name,
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
@@ -184,10 +187,10 @@
                       address: person.address,
                       coupangId: siteIds['쿠팡'] || person.coupangId || '',
                       naverId: siteIds['네이버'] || person.naverId || '',
-                      bank: "신한은행",
-                      account: "110254150254",
-                      accountWithHyphen: "110254-150254",
-                      accountHolder: "이해운"  // 예금주 고정
+                      bank: person.bank || "신한은행",
+                      account: account.replace(/-/g, ''),
+                      accountWithHyphen: accountWithHyphen,
+                      accountHolder: person.accountHolder || person.name
                     };
                   });
                   setPRESETS(newPresets);
@@ -206,14 +209,7 @@
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
                 if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
-                if (config.reviewFees && config.reviewFees.length > 0) {
-                  const fees = config.reviewFees.map(String);
-                  // "0"이 없으면 추가
-                  if (!fees.includes('0')) {
-                    fees.unshift('0');
-                  }
-                  setREVIEW_FEES(fees);
-                }
+                if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
                   setLearnedMappings(config.labelMappings);
@@ -221,6 +217,7 @@
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
+                setLoading(false); // 로딩 완료
                 resolve();
               } else {
                 reject(new Error(data.error || '설정을 불러올 수 없습니다'));
@@ -243,8 +240,9 @@
           });
           
         } catch (error) {
-          console.log('설정 로딩 실패 (기본값 사용):', error);
-          // 에러 메시지 표시 안 함
+          console.error('설정 로딩 실패:', error);
+          setConfigError('⚠️ review-setting 시트를 불러올 수 없습니다. 기본값을 사용합니다.');
+          setLoading(false); // 에러여도 로딩 종료
         }
       };
 
@@ -439,15 +437,24 @@
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
         
-        // 파싱된 이름으로 프리셋 자동 매칭
+        // 파싱된 이름으로 프리셋 자동 매칭 (정확도 개선)
         let matchedPerson = newOrders[index].person;
         if (parsed.receiver) {
-          // PRESETS에서 이름이 일치하는 사람 찾기
-          const foundPerson = Object.keys(PRESETS).find(name => 
-            name.includes(parsed.receiver) || parsed.receiver.includes(name)
-          );
+          const receiver = parsed.receiver.trim();
+          
+          // 1순위: 정확히 일치
+          let foundPerson = Object.keys(PRESETS).find(name => name === receiver);
+          
+          // 2순위: 부분 일치 (3글자 이상)
+          if (!foundPerson && receiver.length >= 2) {
+            foundPerson = Object.keys(PRESETS).find(name => 
+              name.includes(receiver) || receiver.includes(name)
+            );
+          }
+          
           if (foundPerson) {
             matchedPerson = foundPerson;
+            console.log(`✓ 주문자 자동 매칭: ${receiver} → ${foundPerson}`);
           }
         }
         
@@ -592,7 +599,6 @@
             account: preset.account,
             accountWithHyphen: preset.accountWithHyphen,
             accountHolder: preset.accountHolder || "이해운",
-            bank_account_full: `${preset.bank} ${preset.accountWithHyphen} ${preset.accountHolder || "이해운"}`,
             
             // 설정
             card: order.card,
@@ -685,8 +691,7 @@
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
           '구입 금액': 'price',
-          '구입금액': 'price',
-          '계좌번호(은행 계좌번호 예금주)': 'bank_account_full'
+          '구입금액': 'price'
         };
         
         return mappings[fieldName] || fieldName;
@@ -737,6 +742,12 @@
               const values = parts.map(part => {
                 const fieldName = part.trim();
                 const key = mapFieldToKey(fieldName);
+                
+                // 복합 라벨 처리
+                if (key === '__BANK_ACCOUNT_HOLDER__') {
+                  return `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                }
+                
                 return data[key] || '';
               });
               
@@ -752,6 +763,17 @@
               if (match) {
                 const fieldName = match[1].trim();
                 const key = mapFieldToKey(fieldName);
+                
+                // 복합 라벨 처리
+                if (key === '__BANK_ACCOUNT_HOLDER__') {
+                  const value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                  if (removeLabels) {
+                    return value;
+                  } else {
+                    return `${fieldName}: ${value}`;
+                  }
+                }
+                
                 const value = data[key] || '';
                 
                 if (removeLabels) {
