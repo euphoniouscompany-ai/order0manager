@@ -308,31 +308,7 @@
         }
       };
       
-      // 라벨 매핑을 시트에 저장
-      const saveLabelsToSheet = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
-        
-        if (!editedLabels || Object.keys(editedLabels).length === 0) {
-          alert('변경사항이 없습니다');
-          return;
-        }
-        
-        try {
-          await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ labels: editedLabels }),
-            mode: 'no-cors'
-          });
-          
-          alert('✅ 라벨 ' + Object.keys(editedLabels).length + '개가 시트에 저장되었습니다!');
-          setLabelMappingsFromSheet(editedLabels);
-          setEditedLabels({});
-        } catch (error) {
-          console.error('저장 오류:', error);
-          alert('❌ 저장 실패: ' + error.message);
-        }
-      };
+      
 
 
     // 범용 파싱 함수
@@ -797,9 +773,7 @@
         return saved ? JSON.parse(saved) : {};
       });
       const [labelMappingsFromSheet, setLabelMappingsFromSheet] = useState({});
-      const [showLabelManager, setShowLabelManager] = useState(false);
-      const [editedLabels, setEditedLabels] = useState({});
-
+      
       const mapFieldToKey = (fieldName) => {
         // 먼저 학습된 매핑 확인
         if (learnedMappings[fieldName]) {
@@ -1170,7 +1144,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = '__REPLACE_WITH_YOUR_APPS_SCRIPT_URL_HERE__';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
@@ -2501,7 +2475,7 @@ ${order.price}`;
                   justifyContent: 'center'
                 }
               },
-                React.createElement('button', {
+React.createElement('button', {
                   onClick: saveToGoogleSheets,
                   style: {
                     background: '#10b981',
@@ -2533,6 +2507,35 @@ ${order.price}`;
               ),
               
               
+                    )
+                ),
+                
+                React.createElement('div', { style: { display: 'flex', gap: '0.75rem', marginBottom: '1rem' } },
+                  React.createElement('input', { id: 'newLabelName', type: 'text', placeholder: '라벨명 (예: 별명)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
+                  React.createElement('input', { id: 'newLabelKey', type: 'text', placeholder: '매핑키 (예: nickname)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
+                  React.createElement('button', {
+                    onClick: () => {
+                      const name = document.getElementById('newLabelName').value.trim();
+                      const key = document.getElementById('newLabelKey').value.trim();
+                      if (!name || !key) { alert('라벨명과 매핑키를 모두 입력하세요'); return; }
+                      const updated = {...(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet), [name]: key};
+                      setEditedLabels(updated);
+                      document.getElementById('newLabelName').value = '';
+                      document.getElementById('newLabelKey').value = '';
+                      alert('✅ "' + name + '" 추가됨');
+                    },
+                    style: { padding: '0.75rem 1.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }
+                  }, '➕ 추가')
+                ),
+                
+                Object.keys(editedLabels).length > 0 && React.createElement('button', {
+                  onClick: saveLabelsToSheet,
+                  style: { width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }
+                }, '💾 시트에 저장 (' + Object.keys(editedLabels).length + '개)')
+              )
+            )
+          )
+        )
       );
     };
 
