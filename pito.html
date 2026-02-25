@@ -176,7 +176,8 @@
                 if (config.people && config.people.length > 0) {
                   const newPresets = {};
                   config.people.forEach(person => {
-                    const siteIds = config.nameIdMappings[person.name] || {};
+                    // nameIdMappings에서 사이트별 ID 가져오기
+                    const personIdMap = config.nameIdMappings[person.name] || {};
                     const account = person.account || "110254150254";
                     const accountWithHyphen = account.includes('-') ? account : account.replace(/(\d{6})(\d+)/, '$1-$2');
                     
@@ -185,8 +186,8 @@
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
                       phone: person.phone,
                       address: person.address,
-                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
-                      naverId: siteIds['네이버'] || person.naverId || '',
+                      coupangId: personIdMap['쿠팡'] || '',
+                      naverId: personIdMap['네이버'] || '',
                       bank: person.bank || "신한은행",
                       account: account.replace(/-/g, ''),
                       accountWithHyphen: accountWithHyphen,
@@ -195,6 +196,11 @@
                   });
                   setPRESETS(newPresets);
                   console.log('✅ 프리셋 로드됨:', newPresets);
+                  console.log('✅ coupangId/naverId 확인:', 
+                    Object.keys(newPresets).map(name => 
+                      `${name}: 쿠팡=${newPresets[name].coupangId}, 네이버=${newPresets[name].naverId}`
+                    )
+                  );
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
@@ -504,7 +510,25 @@
         const newOrders = [...orders];
         newOrders[index][field] = value;
         if (field === 'person') {
-          newOrders[index].personId = PRESETS[value].coupangId;
+          // 현재 사이트에 맞는 ID로 설정
+          const currentSite = newOrders[index].site;
+          const preset = PRESETS[value];
+          let newId = '';
+          
+          // 1순위: NAME_ID_MAPPINGS에서 찾기
+          if (NAME_ID_MAPPINGS[value] && currentSite) {
+            newId = NAME_ID_MAPPINGS[value][currentSite] || '';
+          }
+          
+          // 2순위: 프리셋의 사이트별 ID
+          if (!newId && preset) {
+            if (currentSite === '쿠팡') newId = preset.coupangId || '';
+            else if (currentSite === '네이버') newId = preset.naverId || '';
+            else newId = preset.coupangId || ''; // 기본값
+          }
+          
+          newOrders[index].personId = newId;
+          console.log(`🔄 주문자 변경: ${value} (${currentSite}) → ID: ${newId}`);
         }
         setOrders(newOrders);
       };
