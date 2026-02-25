@@ -207,6 +207,10 @@
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
+                  // 각 사이트별 ID 목록 확인
+                  Object.keys(config.siteIds).forEach(site => {
+                    console.log(`  ${site}: [${config.siteIds[site].join(', ')}]`);
+                  });
                 }
                 if (config.nameIdMappings) {
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
@@ -1553,7 +1557,13 @@ ${order.price}`;
                       (() => {
                         const currentSite = order.site;
                         const currentSiteIds = SITE_IDS[currentSite] || ['직접입력'];
-                        console.log(`📋 주문 ${index+1} ID 목록: 사이트=${currentSite}, IDs=`, currentSiteIds);
+                        console.log(`📋 주문 ${index+1} ID 목록:`, {
+                          사이트: currentSite,
+                          'SITE_IDS 전체': SITE_IDS,
+                          '현재 사이트 IDs': currentSiteIds,
+                          '주문자': order.person,
+                          '현재 personId': order.personId
+                        });
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
