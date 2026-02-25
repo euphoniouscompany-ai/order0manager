@@ -115,14 +115,11 @@
     ];
 
     const DEFAULT_CARDS = [
-      "와우", "네현", "트레블",
-      "신-쿠", "금-쿠", "신-네", "금-네",
-      "신-앱", "금-앱", "신-스", "금-스", "신-토", "금-토",
-      "카신-쿠", "카신-네", "카신-앱", "카신-카", "카신-토", "카신-스"
+      "신한 베스트"
     ];
 
-    const DEFAULT_DELIVERY_TYPES = ["실배", "빈", "회수"];
-    const DEFAULT_REVIEW_METHODS = ["포토", "텍스트", "별", "구확"];
+    const DEFAULT_DELIVERY_TYPES = ["빈", "실배", "회수", "직접입력"];
+    const DEFAULT_REVIEW_METHODS = ["텍스트", "포토", "별", "구확", "직접입력"];
     const DEFAULT_REVIEW_FEES = ["0", "500", "1000", "1500", "직접입력"];
 
     const OrderManager = () => {
@@ -147,12 +144,17 @@
         window.DEBUG_SITE_IDS = SITE_IDS;
         window.DEBUG_PRESETS = PRESETS;
         window.DEBUG_NAME_ID_MAPPINGS = NAME_ID_MAPPINGS;
-        console.log('🐛 디버그 정보 노출됨:', {
-          'window.DEBUG_SITE_IDS': window.DEBUG_SITE_IDS,
-          'window.DEBUG_PRESETS': window.DEBUG_PRESETS,
-          'window.DEBUG_NAME_ID_MAPPINGS': window.DEBUG_NAME_ID_MAPPINGS
+        window.DEBUG_CARDS = CARDS;
+        window.DEBUG_DELIVERY_TYPES = DELIVERY_TYPES;
+        window.DEBUG_REVIEW_METHODS = REVIEW_METHODS;
+        window.DEBUG_REVIEW_FEES = REVIEW_FEES;
+        console.log('🐛 디버그 정보:', {
+          CARDS: CARDS,
+          DELIVERY_TYPES: DELIVERY_TYPES,
+          REVIEW_METHODS: REVIEW_METHODS,
+          REVIEW_FEES: REVIEW_FEES
         });
-      }, [SITE_IDS, PRESETS, NAME_ID_MAPPINGS]);
+      }, [SITE_IDS, PRESETS, NAME_ID_MAPPINGS, CARDS, DELIVERY_TYPES, REVIEW_METHODS, REVIEW_FEES]);
       
       useEffect(() => {
         // review-setting에서 즉시 로드
@@ -230,9 +232,24 @@
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
-                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
-                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
+                if (config.cards && config.cards.length > 0) {
+                  setCARDS(config.cards);
+                  console.log('✅ 카드 로드됨:', config.cards);
+                } else {
+                  console.warn('⚠️ 카드 데이터 없음!');
+                }
+                if (config.deliveryTypes && config.deliveryTypes.length > 0) {
+                  setDELIVERY_TYPES(config.deliveryTypes);
+                  console.log('✅ 배송 로드됨:', config.deliveryTypes);
+                } else {
+                  console.warn('⚠️ 배송 데이터 없음!');
+                }
+                if (config.reviewMethods && config.reviewMethods.length > 0) {
+                  setREVIEW_METHODS(config.reviewMethods);
+                  console.log('✅ 리뷰 로드됨:', config.reviewMethods);
+                } else {
+                  console.warn('⚠️ 리뷰 데이터 없음!');
+                }
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
@@ -241,6 +258,20 @@
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
+                
+                // 공통 설정도 업데이트
+                setCommonSettings(prev => ({
+                  ...prev,
+                  deliveryType: config.deliveryTypes?.[0] || prev.deliveryType,
+                  reviewMethod: config.reviewMethods?.[0] || prev.reviewMethod,
+                  reviewFee: config.reviewFees?.[2] || prev.reviewFee
+                }));
+                console.log('✅ 공통설정 업데이트:', {
+                  deliveryType: config.deliveryTypes?.[0],
+                  reviewMethod: config.reviewMethods?.[0],
+                  reviewFee: config.reviewFees?.[2]
+                });
+                
                 setLoading(false); // 로딩 완료
                 resolve();
               } else {
