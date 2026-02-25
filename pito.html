@@ -509,6 +509,7 @@
       const updateOrder = (index, field, value) => {
         const newOrders = [...orders];
         newOrders[index][field] = value;
+        
         if (field === 'person') {
           // 현재 사이트에 맞는 ID로 설정
           const currentSite = newOrders[index].site;
@@ -530,6 +531,35 @@
           newOrders[index].personId = newId;
           console.log(`🔄 주문자 변경: ${value} (${currentSite}) → ID: ${newId}`);
         }
+        
+        if (field === 'site') {
+          // 사이트 변경 시 현재 주문자에 맞는 ID로 자동 업데이트
+          const currentPerson = newOrders[index].person;
+          const preset = PRESETS[currentPerson];
+          let newId = '';
+          
+          // 1순위: NAME_ID_MAPPINGS에서 찾기
+          if (NAME_ID_MAPPINGS[currentPerson] && value) {
+            newId = NAME_ID_MAPPINGS[currentPerson][value] || '';
+          }
+          
+          // 2순위: 프리셋의 사이트별 ID
+          if (!newId && preset) {
+            if (value === '쿠팡') newId = preset.coupangId || '';
+            else if (value === '네이버') newId = preset.naverId || '';
+            else newId = preset.coupangId || ''; // 기본값
+          }
+          
+          // 3순위: 해당 사이트의 첫 번째 ID
+          if (!newId) {
+            const siteIds = SITE_IDS[value] || [];
+            newId = siteIds.length > 0 ? siteIds[0] : '';
+          }
+          
+          newOrders[index].personId = newId;
+          console.log(`🔄 사이트 변경: ${value} (${currentPerson}) → ID: ${newId}`);
+        }
+        
         setOrders(newOrders);
       };
 
@@ -1519,11 +1549,11 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 데이터 테이블의 사이트 정보로 아이디 목록 결정
+                      // 현재 주문의 사이트에 맞는 아이디 목록 표시
                       (() => {
-                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
-                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
-                        console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
+                        const currentSite = order.site;
+                        const currentSiteIds = SITE_IDS[currentSite] || ['직접입력'];
+                        console.log(`📋 주문 ${index+1} ID 목록: 사이트=${currentSite}, IDs=`, currentSiteIds);
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
@@ -2245,7 +2275,7 @@ ${order.price}`;
                         // 아이디 필드는 드롭다운으로
                         if (key === 'personId') {
                           const selectedSite = editableData[orderIndex]?.site || '';
-                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
+                          const currentSiteIds = SITE_IDS[selectedSite] || ['직접입력'];
                           
                           return React.createElement('select', {
                             key: orderIndex,
