@@ -143,13 +143,27 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
+        // 디버깅: window에 state 노출
+        window.DEBUG_SITE_IDS = SITE_IDS;
+        window.DEBUG_PRESETS = PRESETS;
+        window.DEBUG_NAME_ID_MAPPINGS = NAME_ID_MAPPINGS;
+        console.log('🐛 디버그 정보 노출됨:', {
+          'window.DEBUG_SITE_IDS': window.DEBUG_SITE_IDS,
+          'window.DEBUG_PRESETS': window.DEBUG_PRESETS,
+          'window.DEBUG_NAME_ID_MAPPINGS': window.DEBUG_NAME_ID_MAPPINGS
+        });
+      }, [SITE_IDS, PRESETS, NAME_ID_MAPPINGS]);
+      
+      useEffect(() => {
         // review-setting에서 즉시 로드
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
+        console.log('🔄 review-setting 로딩 시작...');
         // 시트 로딩 시도
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwiJTCenXmOvhpGwpf62SpHHtrzgJJMpR7LPH3Bff19p2AU1it-abgQBrNs-OalDVAU/exec';
+        console.log('📍 Apps Script URL:', APPS_SCRIPT_URL);
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
@@ -401,9 +415,9 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
-          reviewFee: '1000',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
+          reviewFee: REVIEW_FEES[2] || '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -413,9 +427,9 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: '실배',
-        reviewMethod: '포토',
-        reviewFee: '1000',
+        deliveryType: DELIVERY_TYPES[0],
+        reviewMethod: REVIEW_METHODS[0],
+        reviewFee: REVIEW_FEES[2] || '1000',
         guideline: ''
       });
 
@@ -429,9 +443,9 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
-          reviewFee: '1000',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
+          reviewFee: REVIEW_FEES[2] || '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -605,9 +619,9 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
-            reviewFee: '1000',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: REVIEW_FEES[2] || '1000',
             guideline: '',
             productUrl: '',
             parsed: false
@@ -615,9 +629,9 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
-            reviewFee: '1000',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: REVIEW_FEES[2] || '1000',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
