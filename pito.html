@@ -304,6 +304,27 @@
 
     // 범용 파싱 함수
     const parseOrderText = (text) => {
+      // 라벨 매핑을 시트에 저장
+      const saveLabelsToSheet = async () => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
+        
+        try {
+          await fetch(APPS_SCRIPT_URL + '?action=saveLabels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ labels: editedLabels }),
+            mode: 'no-cors'
+          });
+          
+          alert('✅ 라벨 매핑이 시트에 저장되었습니다!');
+          setLabelMappingsFromSheet(editedLabels);
+          setEditedLabels({});
+        } catch (error) {
+          console.error('저장 오류:', error);
+          alert('❌ 저장 실패: ' + error.message);
+        }
+      };
+
       const result = {
         site: '',
         orderNumber: '',
@@ -762,6 +783,8 @@
         return saved ? JSON.parse(saved) : {};
       });
       const [labelMappingsFromSheet, setLabelMappingsFromSheet] = useState({});
+      const [showLabelManager, setShowLabelManager] = useState(false);
+      const [editedLabels, setEditedLabels] = useState({});
 
       const mapFieldToKey = (fieldName) => {
         // 먼저 학습된 매핑 확인
@@ -1113,7 +1136,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
+        const APPS_SCRIPT_URL = '__REPLACE_WITH_YOUR_APPS_SCRIPT_URL_HERE__';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
