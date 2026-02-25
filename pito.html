@@ -413,6 +413,7 @@
       // 주소 추출
       const addressPatterns = [
         /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡: "받는주소	(10248) 경기도..."
+        /주소([가-힣0-9\s\-\(\)]+)\s*\(\d{5}\)/i, // 네이버: "주소충청남도... (33600)"
         /\((\d{5})\)\s*([^\n]+)/,
         /\[(\d{5})\]\s*([^\n]+)/,
         /주소[:\s]*\(?\d{5}\)?\s*([^\n]+)/i,
@@ -802,6 +803,9 @@
           '은행 계좌번호': 'accountWithHyphen',
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
+          '은행 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
+          '은행명 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
+          '계좌번호(은행 계좌번호 예금주)': '__BANK_ACCOUNT_HOLDER__',
           '구입 금액': 'price',
           '구입금액': 'price'
         };
@@ -2313,6 +2317,9 @@ ${order.price}`;
                           React.createElement('option', { value: 'bank' }, '은행'),
                           React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
                           React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
+                          React.createElement('option', { value: 'accountHolder' }, '예금주'),
+                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER__' }, '은행 계좌번호 예금주'),
+                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__' }, '은행 계좌번호 예금주(하이픈없음)'),
                           React.createElement('option', { value: 'deliveryType' }, '배송'),
                           React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
                           React.createElement('option', { value: 'reviewFee' }, '립비')
