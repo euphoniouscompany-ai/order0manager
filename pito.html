@@ -213,6 +213,11 @@
                   });
                   setPRESETS(newPresets);
                   console.log('✅ 프리셋 로드됨:', newPresets);
+                  console.log('✅ 닉네임 확인:', 
+                    Object.keys(newPresets).map(name => 
+                      `${name}: ${newPresets[name].nickname || '없음'}`
+                    )
+                  );
                   console.log('✅ coupangId/naverId 확인:', 
                     Object.keys(newPresets).map(name => 
                       `${name}: 쿠팡=${newPresets[name].coupangId}, 네이버=${newPresets[name].naverId}`
@@ -2566,9 +2571,11 @@ ${order.price}`;
                         React.createElement('button', {
                           onClick: () => {
                             if (confirm('"' + label + '" 라벨을 삭제하시겠습니까?')) {
-                              const updated = {...(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet)};
+                              const current = Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet;
+                              const updated = {...current};
                               delete updated[label];
                               setEditedLabels(updated);
+                              console.log('라벨 삭제:', label, '→ 남은 개수:', Object.keys(updated).length);
                             }
                           },
                           style: { padding: '0.375rem 0.75rem', fontSize: '0.875rem', backgroundColor: '#fee2e2', color: '#dc2626', border: 'none', borderRadius: '6px', cursor: 'pointer' }
