@@ -184,10 +184,11 @@
                       address: person.address,
                       coupangId: siteIds['쿠팡'] || person.coupangId || '',
                       naverId: siteIds['네이버'] || person.naverId || '',
-                      bank: "신한은행",
-                      account: "110254150254",
-                      accountWithHyphen: "110254-150254",
-                      accountHolder: "이해운"  // 예금주 고정
+                      nickname: person.nickname || '',
+                      bank: person.bank || '',
+                      account: person.account || '',
+                      accountWithHyphen: person.account || '',
+                      accountHolder: person.accountHolder || ''
                     };
                   });
                   setPRESETS(newPresets);
@@ -387,8 +388,8 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
           reviewFee: '1000',
           guideline: '',
           productUrl: '',
@@ -399,8 +400,8 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: '실배',
-        reviewMethod: '포토',
+        deliveryType: DELIVERY_TYPES[0],
+        reviewMethod: REVIEW_METHODS[0],
         reviewFee: '1000',
         guideline: ''
       });
@@ -415,8 +416,8 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
           reviewFee: '1000',
           guideline: '',
           productUrl: '',
@@ -536,8 +537,8 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
             reviewFee: '1000',
             guideline: '',
             productUrl: '',
@@ -546,8 +547,8 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
             reviewFee: '1000',
             guideline: ''
           });
@@ -592,10 +593,11 @@
             
             // 프리셋에만 있는 정보
             naverId: preset.naverId,
+            nickname: preset.nickname || '',
             bank: preset.bank,
             account: preset.account,
             accountWithHyphen: preset.accountWithHyphen,
-            accountHolder: preset.accountHolder || "이해운",
+            accountHolder: preset.accountHolder || '',
             
             // 설정
             card: order.card,
