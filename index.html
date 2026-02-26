@@ -29,98 +29,14 @@
     const { useState, useEffect } = React;
 
     // 기본값 (admin 시트 로딩 실패 시 사용)
-    const DEFAULT_PRESETS = {
-      "이해운": {
-        name: "이해운",
-        reviewName: "이*운",
-        phone: "010-7169-7838",
-        address: "서울특별시 용산구 효창원로104다길 6",
-        coupangId: "iamandy",
-        naverId: "iamandy@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      },
-      "지영신": {
-        name: "지영신",
-        reviewName: "지*신",
-        phone: "010-2771-9985",
-        address: "충청남도 서천군 서면 부원길284번길 12",
-        coupangId: "dudtls0114",
-        naverId: "dudtls00114@gmail.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      },
-      "정동신": {
-        name: "정동신",
-        reviewName: "정*신",
-        phone: "010-9083-9985",
-        address: "경기도 고양시 일산서구 탄현로 136 116동 703호",
-        coupangId: "wjdehdtls",
-        naverId: "wjdehdtls@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      },
-      "전동열": {
-        name: "전동열",
-        reviewName: "전*열",
-        phone: "010-8019-4657",
-        address: "서울특별시 마포구 토정로 223-1",
-        coupangId: "dmi2286",
-        naverId: "iamandy11@gmail.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      },
-      "장샛별": {
-        name: "장샛별",
-        reviewName: "장*별",
-        phone: "010-2124-7160",
-        address: "서울특별시 마포구 토정로 223-1",
-        coupangId: "zzang9227",
-        naverId: "zzang9227@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      },
-      "이해림": {
-        name: "이해림",
-        reviewName: "이*림",
-        phone: "010-2017-9985",
-        address: "경기도 고양시 일산서구 탄현로 136 116동 703호",
-        coupangId: "pitosungy",
-        naverId: "pitosungy@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
-      }
-    };
-
-    const DEFAULT_SITES = [
-      "쿠팡", "네이버", "카카오톡쇼핑", "울림달영", "오늘의집", "옥션",
-      "GSSHOP", "SSG", "무신사", "크몽", "11번가", "롯데온", "지마켓", "직접입력"
-    ];
-
-    const DEFAULT_IDS = [
-      "iamandy", "dudtls", "wjdehdtls", "iamandy11", 
-      "별이", "haewoon1", "dmi2286", "pitosung"
-    ];
-
-    const DEFAULT_CARDS = [
-      "신한 베스트"
-    ];
-
-    const DEFAULT_DELIVERY_TYPES = ["빈", "실배", "회수", "직접입력"];
-    const DEFAULT_REVIEW_METHODS = ["텍스트", "포토", "별", "구확", "직접입력"];
-    const DEFAULT_REVIEW_FEES = ["0", "500", "1000", "1500", "직접입력"];
+    // Apps Script에서 로드될 때까지 빈 값
+    const DEFAULT_PRESETS = {};
+    const DEFAULT_SITES = [];
+    const DEFAULT_IDS = [];
+    const DEFAULT_CARDS = [];
+    const DEFAULT_DELIVERY_TYPES = [];
+    const DEFAULT_REVIEW_METHODS = [];
+    const DEFAULT_REVIEW_FEES = [];
 
     const OrderManager = () => {
       // 동적 설정 (review-setting 시트에서 로드)
@@ -133,6 +49,7 @@
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
       const [REVIEW_FEES, setREVIEW_FEES] = useState(DEFAULT_REVIEW_FEES);
+      const [SITE_PATTERNS, setSITE_PATTERNS] = useState({});  // 주문서 패턴
 
       // 로딩 상태
       const [loading, setLoading] = useState(true);
@@ -140,37 +57,23 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
-        // 디버깅: window에 state 노출
-        window.DEBUG_SITE_IDS = SITE_IDS;
-        window.DEBUG_PRESETS = PRESETS;
-        window.DEBUG_NAME_ID_MAPPINGS = NAME_ID_MAPPINGS;
-        window.DEBUG_CARDS = CARDS;
-        window.DEBUG_DELIVERY_TYPES = DELIVERY_TYPES;
-        window.DEBUG_REVIEW_METHODS = REVIEW_METHODS;
-        window.DEBUG_REVIEW_FEES = REVIEW_FEES;
-        console.log('🐛 디버그 정보:', {
-          CARDS: CARDS,
-          DELIVERY_TYPES: DELIVERY_TYPES,
-          REVIEW_METHODS: REVIEW_METHODS,
-          REVIEW_FEES: REVIEW_FEES
-        });
-      }, [SITE_IDS, PRESETS, NAME_ID_MAPPINGS, CARDS, DELIVERY_TYPES, REVIEW_METHODS, REVIEW_FEES]);
-      
-      useEffect(() => {
-        // review-setting에서 즉시 로드
+        // 기본값으로 바로 시작 (Apps Script 로딩 스킵)
+        setLoading(false);
+        
+        // 백그라운드에서 로드 시도 (실패해도 무시)
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
-        console.log('🔄 review-setting 로딩 시작...');
-        // 시트 로딩 시도
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
-        console.log('📍 Apps Script URL:', APPS_SCRIPT_URL);
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
+          setLoading(false);
           return;
         }
+
+        console.log('📡 Apps Script 호출 중...', APPS_SCRIPT_URL);
 
         try {
           // JSONP 방식으로 CORS 우회
@@ -178,8 +81,9 @@
           
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
+              console.error('❌ Timeout 발생 (10초 경과)');
               reject(new Error('Timeout'));
-            }, 10000);
+            }, 10000);  // 3초 → 10초로 증가
             
             window[callbackName] = (data) => {
               clearTimeout(timeout);
@@ -192,64 +96,37 @@
                 if (config.people && config.people.length > 0) {
                   const newPresets = {};
                   config.people.forEach(person => {
-                    // nameIdMappings에서 사이트별 ID 가져오기
-                    const personIdMap = config.nameIdMappings[person.name] || {};
-                    const account = person.account || "110254150254";
-                    const accountWithHyphen = account.includes('-') ? account : account.replace(/(\d{6})(\d+)/, '$1-$2');
-                    
+                    const siteIds = config.nameIdMappings[person.name] || {};
                     newPresets[person.name] = {
                       name: person.name,
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
                       phone: person.phone,
                       address: person.address,
-                      coupangId: personIdMap['쿠팡'] || '',
-                      naverId: personIdMap['네이버'] || '',
-                      bank: person.bank || "신한은행",
-                      account: account.replace(/-/g, ''),
-                      accountWithHyphen: accountWithHyphen,
-                      accountHolder: person.accountHolder || person.name
+                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
+                      naverId: siteIds['네이버'] || person.naverId || '',
+                      nickname: person.nickname || '',
+                      bank: person.bank || '',
+                      account: person.account || '',
+                      accountWithHyphen: person.account || '',
+                      accountHolder: person.accountHolder || ''
                     };
                   });
                   setPRESETS(newPresets);
                   console.log('✅ 프리셋 로드됨:', newPresets);
-                  console.log('✅ coupangId/naverId 확인:', 
-                    Object.keys(newPresets).map(name => 
-                      `${name}: 쿠팡=${newPresets[name].coupangId}, 네이버=${newPresets[name].naverId}`
-                    )
-                  );
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
-                  // 각 사이트별 ID 목록 확인
-                  Object.keys(config.siteIds).forEach(site => {
-                    console.log(`  ${site}: [${config.siteIds[site].join(', ')}]`);
-                  });
                 }
                 if (config.nameIdMappings) {
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
-                if (config.cards && config.cards.length > 0) {
-                  setCARDS(config.cards);
-                  console.log('✅ 카드 로드됨:', config.cards);
-                } else {
-                  console.warn('⚠️ 카드 데이터 없음!');
-                }
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) {
-                  setDELIVERY_TYPES(config.deliveryTypes);
-                  console.log('✅ 배송 로드됨:', config.deliveryTypes);
-                } else {
-                  console.warn('⚠️ 배송 데이터 없음!');
-                }
-                if (config.reviewMethods && config.reviewMethods.length > 0) {
-                  setREVIEW_METHODS(config.reviewMethods);
-                  console.log('✅ 리뷰 로드됨:', config.reviewMethods);
-                } else {
-                  console.warn('⚠️ 리뷰 데이터 없음!');
-                }
+                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
+                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
+                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
@@ -257,24 +134,17 @@
                   console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
                 }
                 
+                if (config.sitePatterns && Object.keys(config.sitePatterns).length > 0) {
+                  setSITE_PATTERNS(config.sitePatterns);
+                  console.log('✅ 주문서 패턴 로드됨:', config.sitePatterns);
+                }
+                
                 setConfigError(''); // 에러 메시지 제거
-                
-                // 공통 설정도 업데이트
-                setCommonSettings(prev => ({
-                  ...prev,
-                  deliveryType: config.deliveryTypes?.[0] || prev.deliveryType,
-                  reviewMethod: config.reviewMethods?.[0] || prev.reviewMethod,
-                  reviewFee: config.reviewFees?.[2] || prev.reviewFee
-                }));
-                console.log('✅ 공통설정 업데이트:', {
-                  deliveryType: config.deliveryTypes?.[0],
-                  reviewMethod: config.reviewMethods?.[0],
-                  reviewFee: config.reviewFees?.[2]
-                });
-                
-                setLoading(false); // 로딩 완료
+                setLoading(false);  // 성공 시 로딩 종료
+                console.log('✅ Apps Script 로딩 완료');
                 resolve();
               } else {
+                setLoading(false);
                 reject(new Error(data.error || '설정을 불러올 수 없습니다'));
               }
             };
@@ -295,12 +165,59 @@
           });
           
         } catch (error) {
-          console.error('설정 로딩 실패:', error);
-          console.error('에러 상세:', error.message);
-          setConfigError('⚠️ review-setting 시트 로딩 실패: ' + error.message + '. 기본값을 사용합니다.');
-          setLoading(false); // 에러여도 로딩 종료
+          console.error('❌ 설정 로딩 실패:', error);
+          setLoading(false);  // 실패 시에도 로딩 종료
+          alert('❌ Apps Script에서 설정을 불러올 수 없습니다!\n\n원인:\n1. Apps Script URL이 잘못됨\n2. Apps Script를 재배포 안 함\n3. 네트워크 오류\n\n확인:\n- Apps Script 실행 기록\n- HTML의 APPS_SCRIPT_URL');
+          setConfigError('Apps Script 로딩 실패');
         }
       };
+
+    // 패턴 자동 추출 함수
+    const extractPattern = (fullText, targetValue, fieldType) => {
+      if (!targetValue || !fullText.includes(targetValue)) {
+        return '';
+      }
+      
+      const index = fullText.indexOf(targetValue);
+      const before = fullText.substring(Math.max(0, index - 30), index);
+      const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 10));
+      
+      // 라벨 추출 (한글/영문 2-15자)
+      const labelMatch = before.match(/([가-힣a-zA-Z\s]{2,15})$/);
+      const label = labelMatch ? labelMatch[1].trim() : '';
+      
+      // 값 타입별 패턴
+      let valuePattern = '';
+      if (fieldType === 'orderNumber') {
+        valuePattern = '([\\d-]+)';
+      } else if (fieldType === 'price') {
+        valuePattern = '([\\d,]+)';
+      } else if (fieldType === 'receiver') {
+        valuePattern = '([가-힣]{2,5})';
+      } else {
+        valuePattern = '([^\\t\\n]+)';
+      }
+      
+      // 구분자 감지
+      const lastChar = before.slice(-1);
+      let separator = '';
+      if (lastChar === '\t') {
+        separator = '\\t';
+      } else if (lastChar === ':' || lastChar === '：') {
+        separator = '[:\\：]\\s*';
+      } else if (lastChar === ' ') {
+        separator = '\\s*';
+      } else if (/[가-힣a-zA-Z]/.test(lastChar)) {
+        separator = '';
+      }
+      
+      // 특수 케이스
+      if (label.includes('배송지명') && after.startsWith('(')) {
+        return label + '([가-힣]+)\\(';
+      }
+      
+      return label + separator + valuePattern;
+    };
 
     // 범용 파싱 함수
     const parseOrderText = (text) => {
@@ -314,7 +231,7 @@
         detected: false
       };
 
-      // 사이트 감지 (다양한 키워드)
+      // 사이트 감지
       const siteKeywords = {
         "쿠팡": ["쿠팡", "coupang"],
         "네이버": ["네이버페이", "네이버파이낸셜", "네이버"],
@@ -322,8 +239,7 @@
         "지마켓": ["지마켓", "G마켓", "gmarket"],
         "11번가": ["11번가", "11st"],
         "SSG": ["SSG", "신세계"],
-        "무신사": ["무신사", "musinsa"],
-        "쿠팡": ["MY쿠팡", "마이쿠팡"]
+        "무신사": ["무신사", "musinsa"]
       };
 
       for (const [site, keywords] of Object.entries(siteKeywords)) {
@@ -332,6 +248,56 @@
           break;
         }
       }
+
+      // 시트에 저장된 패턴으로 파싱 시도
+      if (result.site && SITE_PATTERNS[result.site]) {
+        const patterns = SITE_PATTERNS[result.site];
+        
+        if (patterns.orderNumber) {
+          try {
+            const regex = new RegExp(patterns.orderNumber, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.orderNumber = match[1].trim();
+            }
+          } catch (e) {
+            console.warn('주문번호 패턴 오류:', e);
+          }
+        }
+        
+        if (patterns.price) {
+          try {
+            const regex = new RegExp(patterns.price, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.price = match[1].replace(/,/g, '');
+            }
+          } catch (e) {
+            console.warn('금액 패턴 오류:', e);
+          }
+        }
+        
+        if (patterns.receiver) {
+          try {
+            const regex = new RegExp(patterns.receiver, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.receiver = match[1].trim();
+            }
+          } catch (e) {
+            console.warn('수취인 패턴 오류:', e);
+          }
+        }
+        
+        // 패턴으로 파싱 성공하면 반환
+        if (result.orderNumber && result.price) {
+          result.detected = true;
+          console.log('✅ 시트 패턴으로 파싱 성공:', result);
+          return result;
+        }
+      }
+
+      // 기본 패턴으로 fallback
 
       // 주문번호 추출 (다양한 패턴)
       const orderPatterns = [
@@ -385,8 +351,7 @@
         /수취인[:\s]+([가-힣]{2,5})/i,
         /수령자[:\s]+([가-힣]{2,5})/i,
         /받으시는\s*분[:\s]+([가-힣]{2,5})/i,
-        /배송지명\s*([가-힣]{2,5})\(/i,      // 네이버: "배송지명 지영신(엄마집)" - 괄호 앞
-        /배송지명[:\s]+([가-힣]{2,5})/i     // 네이버: "배송지명: 지영신" - 괄호 없음
+        /배송지명([가-힣]{2,5})\(/i  // 네이버: 배송지명지영신(엄마집)
       ];
 
       for (const pattern of receiverPatterns) {
@@ -399,7 +364,8 @@
 
       // 전화번호 추출
       const phonePatterns = [
-        /연락처\s*(010[-\s]?\d{4}[-\s]?\d{4})/i,  // 쿠팡: "연락처	010-9083-9985"
+        /연락처(010[-\s]?\d{3,4}[-\s]?\d{4})/i,  // 네이버: 공백없음
+        /연락처\s*(010[-\s]?\d{4}[-\s]?\d{4})/i,  // 쿠팡
         /(010[-\s]?\d{4}[-\s]?\d{4})/
       ];
       for (const pattern of phonePatterns) {
@@ -412,8 +378,8 @@
 
       // 주소 추출
       const addressPatterns = [
-        /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡: "받는주소	(10248) 경기도..."
-        /주소([가-힣0-9\s\-\(\)]+)\s*\(\d{5}\)/i, // 네이버: "주소충청남도... (33600)"
+        /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡
+        /주소([가-힣0-9\s\-\(\)]+?)\s*\((\d{5})\)/i,  // 네이버: 주소...단독 (33600)
         /\((\d{5})\)\s*([^\n]+)/,
         /\[(\d{5})\]\s*([^\n]+)/,
         /주소[:\s]*\(?\d{5}\)?\s*([^\n]+)/i,
@@ -423,13 +389,29 @@
       for (const pattern of addressPatterns) {
         const match = text.match(pattern);
         if (match) {
-          // 주소에서 우편번호, 배송요청사항 등 제거
-          let addr = match[match.length - 1].trim();
-          // 탭 문자 이후 내용 제거 (쿠팡 배송요청사항)
+          // 주소 추출
+          let addr = '';
+          
+          // 네이버 패턴: match[1]이 주소
+          if (match[1] && match[1].match(/[가-힣]/)) {
+            addr = match[1];
+          } else if (match[2]) {
+            // 쿠팡 등: match[2]가 주소
+            addr = match[2];
+          } else {
+            addr = match[match.length - 1];
+          }
+          
+          addr = addr.trim();
+          // 탭 문자 이후 내용 제거
           addr = addr.split('\t')[0].trim();
-          // 괄호 안 아파트명 등은 유지, 그 이후 불필요한 내용 제거
-          result.address = addr;
-          break;
+          // 우편번호 패턴 제거
+          addr = addr.replace(/\(\d{5}\).*$/g, '').replace(/\s*단독\s*$/g, '').trim();
+          
+          if (addr && addr.match(/[가-힣]/)) {
+            result.address = addr;
+            break;
+          }
         }
       }
 
@@ -446,23 +428,33 @@
           orderNumber: '',
           price: '',
           person: Object.keys(PRESETS)[0],
-          personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
-          card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2] || '1000',
+          personId: PRESETS[Object.keys(PRESETS)[0]]?.coupangId || '',
+          card: CARDS[0] || '',
+          deliveryType: DELIVERY_TYPES[0] || '',
+          reviewMethod: REVIEW_METHODS[0] || '',
+          reviewFee: REVIEW_FEES[0] || '',
           guideline: '',
           productUrl: '',
           parsed: false
         }
       ]);
 
+      // 주문서 학습 UI
+      const [showLearningUI, setShowLearningUI] = useState(false);
+      const [learningData, setLearningData] = useState({
+        site: '',
+        rawText: '',
+        orderNumber: '',
+        price: '',
+        receiver: ''
+      });
+
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
-        transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: DELIVERY_TYPES[0],
-        reviewMethod: REVIEW_METHODS[0],
-        reviewFee: REVIEW_FEES[2] || '1000',
+        transactionDate: new Date().toISOString().split('T')[0],
+        deliveryType: DELIVERY_TYPES[0] || '',
+        reviewMethod: REVIEW_METHODS[0] || '',
+        reviewFee: REVIEW_FEES[0] || '',
         guideline: ''
       });
 
@@ -473,12 +465,12 @@
           site: '',
           orderNumber: '',
           price: '',
-          person: Object.keys(PRESETS)[orders.length % 6],
-          personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
-          card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2] || '1000',
+          person: '',  // 빈 상태
+          personId: '',  // 빈 상태
+          card: '',
+          deliveryType: '',
+          reviewMethod: '',
+          reviewFee: '',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -495,51 +487,58 @@
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
         
-        // 파싱된 이름으로 프리셋 자동 매칭 (정확도 개선)
+        // PRESETS 확인 (더 상세하게)
+        const presetKeys = Object.keys(PRESETS);
+        console.log('📋 현재 PRESETS:', presetKeys.length > 0 ? presetKeys.join(', ') : '비어있음');
+        
+        if (presetKeys.length === 0) {
+          console.warn('⚠️ 프리셋이 아직 로드되지 않았습니다.');
+          alert('⚠️ 데이터 로딩 중입니다.\n잠시 후 다시 붙여넣기 해주세요.\n\n(Apps Script 응답 대기 중...)');
+          return;
+        }
+        
+        // 파싱된 이름으로 프리셋 자동 매칭
         let matchedPerson = newOrders[index].person;
         if (parsed.receiver) {
-          const receiver = parsed.receiver.trim();
+          console.log(`🔍 "${parsed.receiver}" 매칭 시도... (가능한 이름: ${presetKeys.join(', ')})`);
           
-          // 1순위: 정확히 일치
-          let foundPerson = Object.keys(PRESETS).find(name => name === receiver);
-          
-          // 2순위: 부분 일치 (3글자 이상)
-          if (!foundPerson && receiver.length >= 2) {
-            foundPerson = Object.keys(PRESETS).find(name => 
-              name.includes(receiver) || receiver.includes(name)
-            );
-          }
+          // PRESETS에서 이름이 일치하는 사람 찾기
+          const foundPerson = presetKeys.find(name => 
+            name.includes(parsed.receiver) || parsed.receiver.includes(name)
+          );
           
           if (foundPerson) {
             matchedPerson = foundPerson;
-            console.log(`✓ 주문자 자동 매칭: ${receiver} → ${foundPerson}`);
+            console.log(`✅ 주문자 매칭 성공: "${parsed.receiver}" → "${matchedPerson}"`);
+          } else {
+            console.warn(`⚠️ 주문자 "${parsed.receiver}" 매칭 실패`);
+            console.warn(`   가능한 이름: ${presetKeys.join(', ')}`);
           }
         }
         
         // 사이트에 따른 아이디 자동 설정
         const detectedSite = parsed.site || newOrders[index].site;
+        console.log(`🔍 ID 자동설정 시도: 주문자="${matchedPerson}", 사이트="${detectedSite}"`);
         
         // 1순위: 이름-아이디 매핑에서 찾기 (이름 + 사이트 조합)
         let defaultId = '';
         if (matchedPerson && NAME_ID_MAPPINGS[matchedPerson] && detectedSite) {
           defaultId = NAME_ID_MAPPINGS[matchedPerson][detectedSite] || '';
-          console.log(`🔍 ID 매칭: ${matchedPerson} + ${detectedSite} = ${defaultId}`);
+          console.log(`  1순위 NAME_ID_MAPPINGS["${matchedPerson}"]["${detectedSite}"] = ${defaultId || '없음'}`);
         }
         // 2순위: 사이트별 아이디 첫 번째
-        if (!defaultId && detectedSite) {
+        if (!defaultId) {
           const siteIdList = SITE_IDS[detectedSite] || [];
           defaultId = siteIdList.length > 0 ? siteIdList[0] : '';
-          console.log(`🔍 사이트별 첫 ID: ${detectedSite} = ${defaultId}`);
+          console.log(`  2순위 SITE_IDS["${detectedSite}"][0] = ${defaultId || '없음'}`);
         }
-        // 3순위: 프리셋의 해당 사이트 ID
-        if (!defaultId && matchedPerson) {
-          const preset = PRESETS[matchedPerson];
-          if (preset) {
-            if (detectedSite === '쿠팡') defaultId = preset.coupangId || '';
-            else if (detectedSite === '네이버') defaultId = preset.naverId || '';
-          }
-          console.log(`🔍 프리셋 ID: ${matchedPerson} (${detectedSite}) = ${defaultId}`);
+        // 3순위: 프리셋 쿠팡 아이디
+        if (!defaultId) {
+          defaultId = PRESETS[matchedPerson]?.coupangId || '';
+          console.log(`  3순위 PRESETS["${matchedPerson}"].coupangId = ${defaultId || '없음'}`);
         }
+        
+        console.log(`✅ 최종 ID: ${defaultId}`);
 
         newOrders[index] = {
           ...newOrders[index],
@@ -555,62 +554,52 @@
           parsed: parsed.detected
         };
         setOrders(newOrders);
+        
+        // editableData도 즉시 업데이트
+        const preset = PRESETS[matchedPerson] || {};
+        const updatedEditableData = {
+          ...editableData,
+          [index]: {
+            ...editableData[index],
+            name: parsed.receiver || preset.name || '',
+            receiver: parsed.receiver || preset.name || '',
+            phone: parsed.phone || preset.phone || '',
+            phoneNoHyphen: (parsed.phone || preset.phone || '').replace(/-/g, ''),
+            address: parsed.address || preset.address || '',
+            orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
+            personId: defaultId,
+            price: parsed.price || newOrders[index].price,
+            site: detectedSite,
+            naverId: preset.naverId || '',
+            nickname: preset.nickname || '',
+            bank: preset.bank || '',
+            account: preset.account || '',
+            accountWithHyphen: preset.accountWithHyphen || '',
+            accountHolder: preset.accountHolder || ''
+          }
+        };
+        setEditableData(updatedEditableData);
+        
+        // 파싱 실패 시 학습 UI 표시
+        if (!parsed.orderNumber || !parsed.price || !parsed.receiver) {
+          console.log('🔍 파싱 불완전 → 학습 UI 표시');
+          setLearningData({
+            site: detectedSite || '직접입력',
+            rawText: text,
+            orderNumber: parsed.orderNumber || '',
+            price: parsed.price || '',
+            receiver: parsed.receiver || ''
+          });
+          setShowLearningUI(true);
+        }
       };
 
       const updateOrder = (index, field, value) => {
         const newOrders = [...orders];
         newOrders[index][field] = value;
-        
         if (field === 'person') {
-          // 현재 사이트에 맞는 ID로 설정
-          const currentSite = newOrders[index].site;
-          const preset = PRESETS[value];
-          let newId = '';
-          
-          // 1순위: NAME_ID_MAPPINGS에서 찾기
-          if (NAME_ID_MAPPINGS[value] && currentSite) {
-            newId = NAME_ID_MAPPINGS[value][currentSite] || '';
-          }
-          
-          // 2순위: 프리셋의 사이트별 ID
-          if (!newId && preset) {
-            if (currentSite === '쿠팡') newId = preset.coupangId || '';
-            else if (currentSite === '네이버') newId = preset.naverId || '';
-            else newId = preset.coupangId || ''; // 기본값
-          }
-          
-          newOrders[index].personId = newId;
-          console.log(`🔄 주문자 변경: ${value} (${currentSite}) → ID: ${newId}`);
+          newOrders[index].personId = PRESETS[value].coupangId;
         }
-        
-        if (field === 'site') {
-          // 사이트 변경 시 현재 주문자에 맞는 ID로 자동 업데이트
-          const currentPerson = newOrders[index].person;
-          const preset = PRESETS[currentPerson];
-          let newId = '';
-          
-          // 1순위: NAME_ID_MAPPINGS에서 찾기
-          if (NAME_ID_MAPPINGS[currentPerson] && value) {
-            newId = NAME_ID_MAPPINGS[currentPerson][value] || '';
-          }
-          
-          // 2순위: 프리셋의 사이트별 ID
-          if (!newId && preset) {
-            if (value === '쿠팡') newId = preset.coupangId || '';
-            else if (value === '네이버') newId = preset.naverId || '';
-            else newId = preset.coupangId || ''; // 기본값
-          }
-          
-          // 3순위: 해당 사이트의 첫 번째 ID
-          if (!newId) {
-            const siteIds = SITE_IDS[value] || [];
-            newId = siteIds.length > 0 ? siteIds[0] : '';
-          }
-          
-          newOrders[index].personId = newId;
-          console.log(`🔄 사이트 변경: ${value} (${currentPerson}) → ID: ${newId}`);
-        }
-        
         setOrders(newOrders);
       };
 
@@ -654,7 +643,7 @@
             card: CARDS[0],
             deliveryType: DELIVERY_TYPES[0],
             reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2] || '1000',
+            reviewFee: '1000',
             guideline: '',
             productUrl: '',
             parsed: false
@@ -664,7 +653,7 @@
             transactionDate: new Date().toISOString().split('T')[0],
             deliveryType: DELIVERY_TYPES[0],
             reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2] || '1000',
+            reviewFee: '1000',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
@@ -683,22 +672,20 @@
         const fields = parseFormTemplate(formTemplate);
         const newEditableData = {};
         
-        selectedOrders.forEach(orderIndex => {
-          const order = orders[orderIndex];
-          if (!order) return;
-          
-          const preset = PRESETS[order.person];
+        // 모든 주문에 대해 editableData 생성
+        orders.forEach((order, orderIndex) => {
+          const preset = PRESETS[order.person] || {};
           const site = order.site === '직접입력' ? (order.customSite || '') : order.site;
           const personId = order.personId === '직접입력' ? (order.customId || '') : order.personId;
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '') : order.reviewFee;
           
           newEditableData[orderIndex] = {
             // 주문서 데이터 우선, 없으면 프리셋
-            name: order.parsedReceiver || preset.name,
-            receiver: order.parsedReceiver || preset.name,
-            phone: order.parsedPhone || preset.phone,
-            phoneNoHyphen: (order.parsedPhone || preset.phone).replace(/-/g, ''),
-            address: order.parsedAddress || preset.address,
+            name: order.parsedReceiver || preset.name || '',
+            receiver: order.parsedReceiver || preset.name || '',
+            phone: order.parsedPhone || preset.phone || '',
+            phoneNoHyphen: (order.parsedPhone || preset.phone || '').replace(/-/g, ''),
+            address: order.parsedAddress || preset.address || '',
             
             // 주문 정보
             orderNumber: order.orderNumber,
@@ -707,11 +694,12 @@
             site: site,
             
             // 프리셋에만 있는 정보
-            naverId: preset.naverId,
-            bank: preset.bank,
-            account: preset.account,
-            accountWithHyphen: preset.accountWithHyphen,
-            accountHolder: preset.accountHolder || "이해운",
+            naverId: preset.naverId || '',
+            nickname: preset.nickname || '',
+            bank: preset.bank || '',
+            account: preset.account || '',
+            accountWithHyphen: preset.accountWithHyphen || '',
+            accountHolder: preset.accountHolder || '',
             
             // 설정
             card: order.card,
@@ -722,7 +710,7 @@
         });
         
         setEditableData(newEditableData);
-      }, [selectedOrders, formTemplate, orders]);
+      }, [orders, formTemplate]);  // orders 변경 시에만
 
       // 편집 데이터 업데이트
       const updateEditableData = (orderIndex, field, value) => {
@@ -757,71 +745,105 @@
       };
 
       // 필드명을 데이터 키로 매핑
-      const [learnedMappings, setLearnedMappings] = useState(() => {
-        const saved = localStorage.getItem('learnedMappings');
-        return saved ? JSON.parse(saved) : {};
-      });
+      // 라벨 매핑은 시트에서만 로드
+      const [learnedMappings, setLearnedMappings] = useState({});
 
       const mapFieldToKey = (fieldName) => {
-        // 먼저 학습된 매핑 확인
+        // 시트에서 로드한 매핑만 사용
         if (learnedMappings[fieldName]) {
           return learnedMappings[fieldName];
         }
         
-        const mappings = {
-          '이름': 'name',
-          '성명': 'name',
-          '구매자': 'name',
-          '성함': 'name',
-          '수취인': 'receiver',
-          '받는분': 'receiver',
-          '받는사람': 'receiver',
-          '주문번호': 'orderNumber',
-          '번호': 'orderNumber',
-          '아이디': 'personId',
-          'ID': 'personId',
-          '이메일': 'naverId',
-          '전화번호': 'phone',
-          '연락처': 'phone',
-          '핸드폰': 'phone',
-          '주소': 'address',
-          '배송지': 'address',
-          '금액': 'price',
-          '가격': 'price',
-          '결제금액': 'price',
-          '사이트': 'site',
-          '채널': 'site',
-          '구매채널': 'site',
-          '카드': 'card',
-          '배송': 'deliveryType',
-          '리뷰': 'reviewMethod',
-          '립비': 'reviewFee',
-          '은행': 'bank',
-          '은행명': 'bank',
-          '계좌': 'accountWithHyphen',
-          '계좌번호': 'accountWithHyphen',
-          '은행 계좌번호': 'accountWithHyphen',
-          '예금주': 'accountHolder',
-          '예금주명': 'accountHolder',
-          '은행 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
-          '은행명 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
-          '계좌번호(은행 계좌번호 예금주)': '__BANK_ACCOUNT_HOLDER__',
-          '구입 금액': 'price',
-          '구입금액': 'price'
-        };
-        
-        return mappings[fieldName] || fieldName;
+        // 매핑 없으면 그대로 반환
+        const result = learnedMappings[fieldName];
+        if (!result) {
+          console.warn('⚠️ 매핑되지 않은 라벨:', fieldName, '→ 그대로 사용');
+        }
+        return result || fieldName;
       };
 
-      // 라벨 학습 저장
-      const saveLearnedMapping = (label, key) => {
-        const newMappings = {
-          ...learnedMappings,
-          [label]: key
-        };
-        setLearnedMappings(newMappings);
-        localStorage.setItem('learnedMappings', JSON.stringify(newMappings));
-        alert(`✅ "${label}" → "${key}" 매핑이 저장되었습니다!`);
+      // 새 라벨 매핑 저장 (Apps Script로 전송)
+      const saveLearnedMapping = async (label, key) => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
+        
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              labels: { [label]: key }
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 로컬 state에 즉시 반영
+            const newMappings = {
+              ...learnedMappings,
+              [label]: key
+            };
+            setLearnedMappings(newMappings);
+            
+            console.log(`✅ "${label}" → "${key}" 매핑이 시트에 저장되었습니다`);
+            
+            // 새로고침 없이 즉시 반영
+            // editableData는 useEffect에서 자동 업데이트됨
+          } else {
+            alert(`❌ 저장 실패: ${result.error}`);
+          }
+        } catch (error) {
+          console.error('라벨 매핑 저장 실패:', error);
+          alert(`❌ 저장 실패: ${error.message}`);
+        }
+      };
+
+      // 주문서 패턴 저장
+      const saveSitePattern = async (site, orderNumber, price, receiver) => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
+        
+        // 패턴 추출
+        const orderNumberPattern = extractPattern(learningData.rawText, orderNumber, 'orderNumber');
+        const pricePattern = extractPattern(learningData.rawText, price, 'price');
+        const receiverPattern = extractPattern(learningData.rawText, receiver, 'receiver');
+        
+        console.log('추출된 패턴:', { orderNumberPattern, pricePattern, receiverPattern });
+        
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              sitePattern: {
+                site: site,
+                orderNumberPattern: orderNumberPattern,
+                pricePattern: pricePattern,
+                receiverPattern: receiverPattern
+              }
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 로컬 state 업데이트
+            setSITE_PATTERNS({
+              ...SITE_PATTERNS,
+              [site]: {
+                orderNumber: orderNumberPattern,
+                price: pricePattern,
+                receiver: receiverPattern
+              }
+            });
+            
+            console.log(`✅ "${site}" 주문서 패턴이 시트에 저장되었습니다`);
+            alert(`✅ "${site}" 패턴이 저장되었습니다!\n다음부터 자동으로 파싱됩니다.`);
+            setShowLearningUI(false);
+          } else {
+            alert(`❌ 저장 실패: ${result.error}`);
+          }
+        } catch (error) {
+          console.error('패턴 저장 실패:', error);
+          alert(`❌ 저장 실패: ${error.message}`);
+        }
       };
 
       // 주문 선택 토글
@@ -845,6 +867,27 @@
           return '';
         }
         
+        // 폼 양식에서 은행 관련 필드 감지
+        const lines = formTemplate.split('\n').filter(l => l.trim());
+        const bankFields = ['은행', '계좌번호', '예금주', '계좌'];
+        const hasBankField = lines.some(line => {
+          const fieldName = line.replace(/[:\：].*$/, '').trim();
+          return bankFields.some(f => fieldName.includes(f));
+        });
+        
+        // 은행, 계좌, 예금주가 세 개 모두 있는지 확인
+        const hasBankName = lines.some(line => line.includes('은행') && !line.includes('계좌') && !line.includes('예금주'));
+        const hasAccount = lines.some(line => line.includes('계좌'));
+        const hasAccountHolder = lines.some(line => line.includes('예금주'));
+        const hasAllThree = hasBankName && hasAccount && hasAccountHolder;
+        
+        // 은행 관련 필드가 있는데 세 개가 다 없으면 → 자동으로 합쳐서 출력
+        const shouldCombineBankInfo = hasBankField && !hasAllThree;
+        
+        if (shouldCombineBankInfo) {
+          console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
+        }
+        
         return selectedOrders.map(orderIndex => {
           const data = editableData[orderIndex];
           if (!data) return '';
@@ -858,12 +901,6 @@
               const values = parts.map(part => {
                 const fieldName = part.trim();
                 const key = mapFieldToKey(fieldName);
-                
-                // 복합 라벨 처리
-                if (key === '__BANK_ACCOUNT_HOLDER__') {
-                  return `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
-                }
-                
                 return data[key] || '';
               });
               
@@ -881,16 +918,20 @@
                 const key = mapFieldToKey(fieldName);
                 
                 // 복합 라벨 처리
+                let value = '';
                 if (key === '__BANK_ACCOUNT_HOLDER__') {
-                  const value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
-                  if (removeLabels) {
-                    return value;
-                  } else {
-                    return `${fieldName}: ${value}`;
-                  }
+                  value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                } else if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
+                  const account = (data.account || data.accountWithHyphen || '').replace(/-/g, '');
+                  value = `${data.bank || ''} ${account} ${data.accountHolder || ''}`.trim();
                 }
-                
-                const value = data[key] || '';
+                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때
+                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder')) {
+                  // 은행 관련 필드면 세 개 합쳐서 출력
+                  value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                } else {
+                  value = data[key] || '';
+                }
                 
                 if (removeLabels) {
                   return value;
@@ -965,16 +1006,14 @@
         accountFormat: 'hyphen' // 'hyphen' or 'none'
       });
 
-      const [savedPresets, setSavedPresets] = useState(() => {
-        const saved = localStorage.getItem('outputPresets');
-        return saved ? JSON.parse(saved) : {
-          "기본": {
-            separator: '/',
-            phoneFormat: 'hyphen',
-            accountFormat: 'hyphen',
-            customTemplate: ''
-          }
-        };
+      // 출력 프리셋 (localStorage 제거)
+      const [savedPresets, setSavedPresets] = useState({
+        "기본": {
+          separator: '/',
+          phoneFormat: 'hyphen',
+          accountFormat: 'hyphen',
+          customTemplate: ''
+        }
       });
 
       const [presetName, setPresetName] = useState('');
@@ -997,10 +1036,10 @@
         };
         
         setSavedPresets(newPresets);
-        localStorage.setItem('outputPresets', JSON.stringify(newPresets));
+        // localStorage 제거
         setPresetName('');
         setShowPresetDialog(false);
-        alert(`✅ "${presetName}" 프리셋이 저장되었습니다!`);
+        alert(`✅ "${presetName}" 프리셋이 저장되었습니다! (세션에만 유지)`);
       };
 
       const loadPreset = (name) => {
@@ -1027,7 +1066,7 @@
           const newPresets = {...savedPresets};
           delete newPresets[name];
           setSavedPresets(newPresets);
-          localStorage.setItem('outputPresets', JSON.stringify(newPresets));
+          // localStorage 제거
           alert(`✅ "${name}" 프리셋이 삭제되었습니다`);
         }
       };
@@ -1112,7 +1151,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
@@ -1603,17 +1642,23 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 현재 주문의 사이트에 맞는 아이디 목록 표시
+                      // 현재 주문의 사이트로 ID 목록 결정
                       (() => {
-                        const currentSite = order.site;
-                        const currentSiteIds = SITE_IDS[currentSite] || ['직접입력'];
-                        console.log(`📋 주문 ${index+1} ID 목록:`, {
-                          사이트: currentSite,
-                          'SITE_IDS 전체': SITE_IDS,
-                          '현재 사이트 IDs': currentSiteIds,
-                          '주문자': order.person,
-                          '현재 personId': order.personId
-                        });
+                        const selectedSite = order.site || '';
+                        let currentSiteIds = SITE_IDS[selectedSite] || [];
+                        
+                        // 현재 personId가 목록에 없으면 추가
+                        if (order.personId && !currentSiteIds.includes(order.personId)) {
+                          currentSiteIds = [order.personId, ...currentSiteIds];
+                        }
+                        
+                        // 기본값 추가
+                        if (!currentSiteIds.includes('직접입력')) {
+                          currentSiteIds = [...currentSiteIds, '직접입력'];
+                        }
+                        
+                        console.log(`주문 ${index}: 사이트="${selectedSite}", personId="${order.personId}", 목록:`, currentSiteIds);
+                        
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
@@ -2094,24 +2139,6 @@ ${order.price}`;
                   }
                 },
                   React.createElement('div'),
-                  Object.keys(learnedMappings).length > 0 && React.createElement('button', {
-                    onClick: () => {
-                      if (confirm(`학습된 ${Object.keys(learnedMappings).length}개 매핑을 모두 삭제하시겠습니까?`)) {
-                        setLearnedMappings({});
-                        localStorage.removeItem('learnedMappings');
-                        alert('✅ 학습 데이터가 초기화되었습니다');
-                      }
-                    },
-                    style: {
-                      fontSize: '0.75rem',
-                      padding: '0.25rem 0.5rem',
-                      background: '#fef2f2',
-                      border: '1px solid #fca5a5',
-                      borderRadius: '4px',
-                      color: '#991b1b',
-                      cursor: 'pointer'
-                    }
-                  }, `📚 학습된 매핑 ${Object.keys(learnedMappings).length}개`)
                 ),
                 React.createElement('textarea', {
                   value: formTemplate,
@@ -2289,8 +2316,16 @@ ${order.price}`;
                         // 알 수 없는 라벨일 경우 학습 옵션 표시
                         isUnknown && React.createElement('select', {
                           onChange: (e) => {
-                            if (e.target.value) {
+                            if (e.target.value && !e.target.value.startsWith('_TEMP_')) {
                               saveLearnedMapping(field, e.target.value);
+                            } else if (e.target.value.startsWith('_TEMP_')) {
+                              // 임시 매핑 (저장 안 함)
+                              const actualKey = e.target.value.replace('_TEMP_', '');
+                              setLearnedMappings({
+                                ...learnedMappings,
+                                [field]: actualKey
+                              });
+                              console.log(`🔸 임시 매핑: "${field}" → "${actualKey}" (저장 안 됨)`);
                             }
                           },
                           style: {
@@ -2304,10 +2339,12 @@ ${order.price}`;
                           }
                         },
                           React.createElement('option', { value: '' }, '항목 선택'),
+                          React.createElement('optgroup', { label: '--- 저장 (시트에 추가) ---' }),
                           React.createElement('option', { value: 'name' }, '이름'),
                           React.createElement('option', { value: 'receiver' }, '수취인'),
                           React.createElement('option', { value: 'orderNumber' }, '주문번호'),
                           React.createElement('option', { value: 'personId' }, '아이디'),
+                          React.createElement('option', { value: 'nickname' }, '닉네임'),
                           React.createElement('option', { value: 'phone' }, '전화번호'),
                           React.createElement('option', { value: 'phoneNoHyphen' }, '전화번호(하이픈없음)'),
                           React.createElement('option', { value: 'address' }, '주소'),
@@ -2318,11 +2355,12 @@ ${order.price}`;
                           React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
                           React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
                           React.createElement('option', { value: 'accountHolder' }, '예금주'),
-                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER__' }, '은행 계좌번호 예금주'),
-                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__' }, '은행 계좌번호 예금주(하이픈없음)'),
                           React.createElement('option', { value: 'deliveryType' }, '배송'),
                           React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
-                          React.createElement('option', { value: 'reviewFee' }, '립비')
+                          React.createElement('option', { value: 'reviewFee' }, '립비'),
+                          React.createElement('optgroup', { label: '--- 임시 사용 (저장 안 됨) ---' }),
+                          React.createElement('option', { value: '_TEMP___BANK_ACCOUNT_HOLDER__', style: { color: '#ea580c' } }, '🔸 은행 계좌번호 예금주 (임시)'),
+                          React.createElement('option', { value: '_TEMP___BANK_ACCOUNT_HOLDER_NO_HYPHEN__', style: { color: '#ea580c' } }, '🔸 은행 계좌번호 예금주(하이픈없음) (임시)')
                         )
                       ),
                       
@@ -2338,7 +2376,7 @@ ${order.price}`;
                         // 아이디 필드는 드롭다운으로
                         if (key === 'personId') {
                           const selectedSite = editableData[orderIndex]?.site || '';
-                          const currentSiteIds = SITE_IDS[selectedSite] || ['직접입력'];
+                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
                           
                           return React.createElement('select', {
                             key: orderIndex,
@@ -2471,6 +2509,145 @@ ${order.price}`;
                     boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
                   }
                 }, '🗑️ 전체 초기화')
+              )
+            ),
+            
+            // 주문서 학습 UI 모달
+            showLearningUI && React.createElement('div', {
+              style: {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.7)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 1000
+              },
+              onClick: () => setShowLearningUI(false)
+            },
+              React.createElement('div', {
+                style: {
+                  background: 'white',
+                  padding: '2rem',
+                  borderRadius: '12px',
+                  width: '90%',
+                  maxWidth: '600px',
+                  maxHeight: '80vh',
+                  overflow: 'auto'
+                },
+                onClick: (e) => e.stopPropagation()
+              },
+                React.createElement('h2', {
+                  style: { marginTop: 0, marginBottom: '1rem', color: '#1e293b' }
+                }, '🔍 주문서 학습'),
+                
+                React.createElement('p', {
+                  style: { color: '#64748b', marginBottom: '1.5rem' }
+                }, `"${learningData.site}" 주문서를 인식하지 못했습니다. 아래 값을 입력하면 다음부터 자동으로 인식합니다.`),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '주문번호'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.orderNumber,
+                    onChange: (e) => setLearningData({...learningData, orderNumber: e.target.value}),
+                    placeholder: '주문서에서 주문번호를 복사해서 붙여넣으세요',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '금액'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.price,
+                    onChange: (e) => setLearningData({...learningData, price: e.target.value}),
+                    placeholder: '결제 금액을 입력하세요 (예: 68400)',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1.5rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '수취인'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.receiver,
+                    onChange: (e) => setLearningData({...learningData, receiver: e.target.value}),
+                    placeholder: '받는 사람 이름을 입력하세요',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { display: 'flex', gap: '1rem', justifyContent: 'flex-end' }
+                },
+                  React.createElement('button', {
+                    onClick: () => setShowLearningUI(false),
+                    style: {
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }
+                  }, '취소'),
+                  React.createElement('button', {
+                    onClick: () => {
+                      if (!learningData.orderNumber || !learningData.price || !learningData.receiver) {
+                        alert('모든 값을 입력해주세요!');
+                        return;
+                      }
+                      saveSitePattern(
+                        learningData.site,
+                        learningData.orderNumber,
+                        learningData.price,
+                        learningData.receiver
+                      );
+                    },
+                    style: {
+                      padding: '0.75rem 1.5rem',
+                      border: 'none',
+                      borderRadius: '6px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }
+                  }, '✅ 학습 저장')
+                )
               )
             )
           )
