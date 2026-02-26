@@ -184,11 +184,11 @@
                       address: person.address,
                       coupangId: siteIds['쿠팡'] || person.coupangId || '',
                       naverId: siteIds['네이버'] || person.naverId || '',
-                      nickname: person.nickname || '',
+                      nickname: person.nickname,  // 하드코딩 없음, Apps Script에서 읽어야 함
                       bank: "신한은행",
                       account: "110254150254",
                       accountWithHyphen: "110254-150254",
-                      accountHolder: "이해운"  // 예금주 고정
+                      accountHolder: "이해운"
                     };
                   });
                   setPRESETS(newPresets);
@@ -204,9 +204,22 @@
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
+                
+                // 필수 데이터 체크
+                if (!config.deliveryTypes || config.deliveryTypes.length === 0) {
+                  alert('❌ 에러: review-setting 시트에서 배송형태를 읽을 수 없습니다.\n\n"▼ 배송형태" 섹션을 확인하세요.');
+                  reject(new Error('배송형태 데이터 없음'));
+                  return;
+                }
+                if (!config.reviewMethods || config.reviewMethods.length === 0) {
+                  alert('❌ 에러: review-setting 시트에서 리뷰방법을 읽을 수 없습니다.\n\n"▼ 리뷰방법" 섹션을 확인하세요.');
+                  reject(new Error('리뷰방법 데이터 없음'));
+                  return;
+                }
+                
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
-                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
+                setDELIVERY_TYPES(config.deliveryTypes);
+                setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
@@ -386,9 +399,9 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0] || '빈',
-          reviewMethod: REVIEW_METHODS[0] || '텍스트',
-          reviewFee: REVIEW_FEES[2] || '1000',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
+          reviewFee: REVIEW_FEES[2],
           guideline: '',
           productUrl: '',
           parsed: false
@@ -398,9 +411,9 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: DELIVERY_TYPES[0] || '빈',
-        reviewMethod: REVIEW_METHODS[0] || '텍스트',
-        reviewFee: REVIEW_FEES[2] || '1000',
+        deliveryType: DELIVERY_TYPES[0],
+        reviewMethod: REVIEW_METHODS[0],
+        reviewFee: REVIEW_FEES[2],
         guideline: ''
       });
 
@@ -414,9 +427,9 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0] || '빈',
-          reviewMethod: REVIEW_METHODS[0] || '텍스트',
-          reviewFee: REVIEW_FEES[2] || '1000',
+          deliveryType: DELIVERY_TYPES[0],
+          reviewMethod: REVIEW_METHODS[0],
+          reviewFee: REVIEW_FEES[2],
           guideline: '',
           productUrl: '',
           parsed: false
@@ -526,9 +539,9 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: DELIVERY_TYPES[0] || '빈',
-            reviewMethod: REVIEW_METHODS[0] || '텍스트',
-            reviewFee: REVIEW_FEES[2] || '1000',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: REVIEW_FEES[2],
             guideline: '',
             productUrl: '',
             parsed: false
@@ -536,9 +549,9 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: DELIVERY_TYPES[0] || '빈',
-            reviewMethod: REVIEW_METHODS[0] || '텍스트',
-            reviewFee: REVIEW_FEES[2] || '1000',
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: REVIEW_FEES[2],
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
@@ -654,6 +667,7 @@
           '번호': 'orderNumber',
           '아이디': 'personId',
           'ID': 'personId',
+          '닉네임': 'nickname',
           '이메일': 'naverId',
           '전화번호': 'phone',
           '연락처': 'phone',
@@ -681,7 +695,11 @@
           '구입금액': 'price'
         };
         
-        return mappings[fieldName] || fieldName;
+        const result = mappings[fieldName];
+        if (!result) {
+          console.warn('⚠️ 매핑되지 않은 라벨:', fieldName, '→ 그대로 사용');
+        }
+        return result || fieldName;
       };
 
       // 라벨 학습 저장
