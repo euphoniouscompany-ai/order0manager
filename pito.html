@@ -359,18 +359,32 @@
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
         
+        // PRESETS 확인 (더 상세하게)
+        const presetKeys = Object.keys(PRESETS);
+        console.log('📋 현재 PRESETS:', presetKeys.length > 0 ? presetKeys.join(', ') : '비어있음');
+        
+        if (presetKeys.length === 0) {
+          console.warn('⚠️ 프리셋이 아직 로드되지 않았습니다.');
+          alert('⚠️ 데이터 로딩 중입니다.\n잠시 후 다시 붙여넣기 해주세요.\n\n(Apps Script 응답 대기 중...)');
+          return;
+        }
+        
         // 파싱된 이름으로 프리셋 자동 매칭
         let matchedPerson = newOrders[index].person;
         if (parsed.receiver) {
+          console.log(`🔍 "${parsed.receiver}" 매칭 시도... (가능한 이름: ${presetKeys.join(', ')})`);
+          
           // PRESETS에서 이름이 일치하는 사람 찾기
-          const foundPerson = Object.keys(PRESETS).find(name => 
+          const foundPerson = presetKeys.find(name => 
             name.includes(parsed.receiver) || parsed.receiver.includes(name)
           );
+          
           if (foundPerson) {
             matchedPerson = foundPerson;
-            console.log(`✅ 주문자 매칭: "${parsed.receiver}" → "${matchedPerson}"`);
+            console.log(`✅ 주문자 매칭 성공: "${parsed.receiver}" → "${matchedPerson}"`);
           } else {
             console.warn(`⚠️ 주문자 "${parsed.receiver}" 매칭 실패`);
+            console.warn(`   가능한 이름: ${presetKeys.join(', ')}`);
           }
         }
         
