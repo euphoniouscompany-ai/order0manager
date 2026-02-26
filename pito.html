@@ -184,59 +184,28 @@
                       address: person.address,
                       coupangId: siteIds['쿠팡'] || person.coupangId || '',
                       naverId: siteIds['네이버'] || person.naverId || '',
-                      nickname: person.nickname,  // 하드코딩 없음, Apps Script에서 읽어야 함
                       bank: "신한은행",
                       account: "110254150254",
                       accountWithHyphen: "110254-150254",
-                      accountHolder: "이해운"
+                      accountHolder: "이해운"  // 예금주 고정
                     };
                   });
                   setPRESETS(newPresets);
-                  window.DEBUG_PRESETS = newPresets;
                   console.log('✅ 프리셋 로드됨:', newPresets);
-                  
-                  // 닉네임 확인 (person.nickname 필드)
-                  const nicknameCheck = Object.entries(newPresets).map(([name, data]) => ({
-                    이름: name,
-                    닉네임: data.nickname,
-                    네이버ID: data.naverId
-                  }));
-                  console.table(nicknameCheck);
-                  
-                  if (config.people.some(p => p.nickname)) {
-                    console.log('✅ Apps Script에서 nickname 필드를 읽었습니다');
-                  } else {
-                    console.warn('⚠️ Apps Script에서 nickname 필드를 읽지 못했습니다. Row 10 확인 필요');
-                  }
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
-                  window.DEBUG_SITE_IDS = config.siteIds;
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
                 }
                 if (config.nameIdMappings) {
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
-                  window.DEBUG_NAME_ID_MAPPINGS = config.nameIdMappings;
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
-                
-                // 필수 데이터 체크
-                if (!config.deliveryTypes || config.deliveryTypes.length === 0) {
-                  alert('❌ 에러: review-setting 시트에서 배송형태를 읽을 수 없습니다.\n\n"▼ 배송형태" 섹션을 확인하세요.');
-                  reject(new Error('배송형태 데이터 없음'));
-                  return;
-                }
-                if (!config.reviewMethods || config.reviewMethods.length === 0) {
-                  alert('❌ 에러: review-setting 시트에서 리뷰방법을 읽을 수 없습니다.\n\n"▼ 리뷰방법" 섹션을 확인하세요.');
-                  reject(new Error('리뷰방법 데이터 없음'));
-                  return;
-                }
-                
                 if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-                setDELIVERY_TYPES(config.deliveryTypes);
-                setREVIEW_METHODS(config.reviewMethods);
+                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
+                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
@@ -351,11 +320,11 @@
       const receiverPatterns = [
         /받는사람\t([^\t\n]+)/i,              // 쿠팡: "받는사람\t정동신\t" (탭 구분)
         /받는사람\s{2,}([^\s\n][^\n]*)/i,    // 쿠팡: "받는사람   정동신"
-        /배송지명([가-힣]{2,5})\(/i,         // 네이버: "배송지명지영신(엄마집)" - 괄호 앞 이름
-        /받는\s*사람[:\s]+([가-힣]{2,5})/i,  // "받는 사람: 이해운"
+        /받는\s*사람[:\s]+([가-힣]{2,5})/i,  // "받는 사람: 이해운" (한글 이름만)
         /수취인[:\s]+([가-힣]{2,5})/i,
         /수령자[:\s]+([가-힣]{2,5})/i,
-        /받으시는\s*분[:\s]+([가-힣]{2,5})/i
+        /받으시는\s*분[:\s]+([가-힣]{2,5})/i,
+        /배송지명([가-힣]{2,5})\(/i  // 네이버: 배송지명지영신(엄마집)
       ];
 
       for (const pattern of receiverPatterns) {
@@ -368,9 +337,9 @@
 
       // 전화번호 추출
       const phonePatterns = [
-        /연락처(010[-\s]?\d{3,4}[-\s]?\d{4})/i,  // 네이버: "연락처010-2771-9985" (공백 없음)
-        /연락처\s+(010[-\s]?\d{3,4}[-\s]?\d{4})/i,  // 쿠팡: "연락처	010-9083-9985"
-        /(010[-\s]?\d{3,4}[-\s]?\d{4})/
+        /연락처(010[-\s]?\d{3,4}[-\s]?\d{4})/i,  // 네이버: 공백없음
+        /연락처\s*(010[-\s]?\d{4}[-\s]?\d{4})/i,  // 쿠팡
+        /(010[-\s]?\d{4}[-\s]?\d{4})/
       ];
       for (const pattern of phonePatterns) {
         const phoneMatch = text.match(pattern);
@@ -382,8 +351,8 @@
 
       // 주소 추출
       const addressPatterns = [
-        /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡: "받는주소	(10248) 경기도..."
-        /주소([가-힣0-9\s\-\(\)]+)\s*\((\d{5})\)/i,  // 네이버: "주소충청남도 서천군... (33600)"
+        /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡
+        /주소([가-힣0-9\s\-\(\)]+?)\s*\((\d{5})\)/i,  // 네이버: 주소...단독 (33600)
         /\((\d{5})\)\s*([^\n]+)/,
         /\[(\d{5})\]\s*([^\n]+)/,
         /주소[:\s]*\(?\d{5}\)?\s*([^\n]+)/i,
@@ -393,12 +362,11 @@
       for (const pattern of addressPatterns) {
         const match = text.match(pattern);
         if (match) {
-          // 주소는 맨 마지막 괄호 앞 텍스트
-          let addr = match[1].trim();
-          // 탭 문자 이후 내용 제거
+          // 주소에서 우편번호, 배송요청사항 등 제거
+          let addr = match[match.length - 1].trim();
+          // 탭 문자 이후 내용 제거 (쿠팡 배송요청사항)
           addr = addr.split('\t')[0].trim();
-          // 우편번호 패턴 제거
-          addr = addr.replace(/\(\d{5}\).*$/, '').trim();
+          // 괄호 안 아파트명 등은 유지, 그 이후 불필요한 내용 제거
           result.address = addr;
           break;
         }
@@ -419,9 +387,9 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2],
+          deliveryType: '실배',
+          reviewMethod: '포토',
+          reviewFee: '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -431,9 +399,9 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: DELIVERY_TYPES[0],
-        reviewMethod: REVIEW_METHODS[0],
-        reviewFee: REVIEW_FEES[2],
+        deliveryType: '실배',
+        reviewMethod: '포토',
+        reviewFee: '1000',
         guideline: ''
       });
 
@@ -447,9 +415,9 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2],
+          deliveryType: '실배',
+          reviewMethod: '포토',
+          reviewFee: '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -475,26 +443,35 @@
           );
           if (foundPerson) {
             matchedPerson = foundPerson;
+            console.log(`✅ 주문자 매칭: "${parsed.receiver}" → "${matchedPerson}"`);
+          } else {
+            console.warn(`⚠️ 주문자 "${parsed.receiver}" 매칭 실패`);
           }
         }
         
         // 사이트에 따른 아이디 자동 설정
         const detectedSite = parsed.site || newOrders[index].site;
+        console.log(`🔍 ID 자동설정 시도: 주문자="${matchedPerson}", 사이트="${detectedSite}"`);
         
         // 1순위: 이름-아이디 매핑에서 찾기 (이름 + 사이트 조합)
         let defaultId = '';
         if (matchedPerson && NAME_ID_MAPPINGS[matchedPerson] && detectedSite) {
           defaultId = NAME_ID_MAPPINGS[matchedPerson][detectedSite] || '';
+          console.log(`  1순위 NAME_ID_MAPPINGS["${matchedPerson}"]["${detectedSite}"] = ${defaultId || '없음'}`);
         }
         // 2순위: 사이트별 아이디 첫 번째
         if (!defaultId) {
           const siteIdList = SITE_IDS[detectedSite] || [];
           defaultId = siteIdList.length > 0 ? siteIdList[0] : '';
+          console.log(`  2순위 SITE_IDS["${detectedSite}"][0] = ${defaultId || '없음'}`);
         }
         // 3순위: 프리셋 쿠팡 아이디
         if (!defaultId) {
           defaultId = PRESETS[matchedPerson]?.coupangId || '';
+          console.log(`  3순위 PRESETS["${matchedPerson}"].coupangId = ${defaultId || '없음'}`);
         }
+        
+        console.log(`✅ 최종 ID: ${defaultId}`);
 
         newOrders[index] = {
           ...newOrders[index],
@@ -559,9 +536,9 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: DELIVERY_TYPES[0],
-            reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2],
+            deliveryType: '실배',
+            reviewMethod: '포토',
+            reviewFee: '1000',
             guideline: '',
             productUrl: '',
             parsed: false
@@ -569,9 +546,9 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: DELIVERY_TYPES[0],
-            reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2],
+            deliveryType: '실배',
+            reviewMethod: '포토',
+            reviewFee: '1000',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
@@ -679,10 +656,8 @@
           '이름': 'name',
           '성명': 'name',
           '구매자': 'name',
-          '구매자명': 'name',
           '성함': 'name',
           '수취인': 'receiver',
-          '수취인명': 'receiver',
           '받는분': 'receiver',
           '받는사람': 'receiver',
           '주문번호': 'orderNumber',
@@ -693,20 +668,15 @@
           '이메일': 'naverId',
           '전화번호': 'phone',
           '연락처': 'phone',
-          '연락처(-포함)': 'phone',
           '핸드폰': 'phone',
           '주소': 'address',
           '배송지': 'address',
           '금액': 'price',
           '가격': 'price',
           '결제금액': 'price',
-          '결제 금액': 'price',
-          '구입금액': 'price',
-          '구입 금액': 'price',
           '사이트': 'site',
           '채널': 'site',
           '구매채널': 'site',
-          '구입 채널': 'site',
           '카드': 'card',
           '배송': 'deliveryType',
           '리뷰': 'reviewMethod',
@@ -716,17 +686,13 @@
           '계좌': 'accountWithHyphen',
           '계좌번호': 'accountWithHyphen',
           '은행 계좌번호': 'accountWithHyphen',
-          '은행 계좌번호(하이픈삭제 -)': 'account',
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
-          '은행 예금주': 'accountHolder',
+          '구입 금액': 'price',
+          '구입금액': 'price'
         };
         
-        const result = mappings[fieldName];
-        if (!result) {
-          console.warn('⚠️ 매핑되지 않은 라벨:', fieldName, '→ 그대로 사용');
-        }
-        return result || fieldName;
+        return mappings[fieldName] || fieldName;
       };
 
       // 라벨 학습 저장
