@@ -1227,10 +1227,14 @@ ${order.price}`;
           const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId;
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : order.reviewFee;
           
-          // 장바구니번호 우선, 없으면 주문번호
-          const finalOrderNumber = order.cartNumber || order.orderNumber;
+          // 개별 값 없으면 공통설정 값 사용
+          const finalCard = order.card || commonSettings.card || '';
+          const finalDelivery = order.deliveryType || commonSettings.deliveryType || '';
+          const finalReview = order.reviewMethod || commonSettings.reviewMethod || '';
+          const finalReviewFee = reviewFee || commonSettings.reviewFee || '';
+          const finalGuideline = order.guideline || commonSettings.guideline || '';
           
-          console.log(`📦 주문 저장: 장바구니=${order.cartNumber}, 주문번호=${order.orderNumber}, 최종=${finalOrderNumber}`);
+          console.log(`📦 주문 저장: 카드=${finalCard}, 배송=${finalDelivery}, 리뷰=${finalReview}, 립비=${finalReviewFee}`);
           
           return {
             date: dateStr,
@@ -1238,11 +1242,11 @@ ${order.price}`;
             talkRoom: commonSettings.talkRoomName,
             id: personId,
             price: order.price,
-            card: order.card,
-            delivery: order.deliveryType,
-            review: order.reviewMethod,
-            reviewFee: reviewFee,
-            guideline: order.guideline,
+            card: finalCard,
+            delivery: finalDelivery,
+            review: finalReview,
+            reviewFee: finalReviewFee,
+            guideline: finalGuideline,
             cartNumber: order.cartNumber || '',  // 장바구니번호 (Q열)
             orderNumber: order.orderNumber,       // 주문번호 (R열)
             productUrl: order.productUrl || ''
