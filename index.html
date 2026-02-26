@@ -129,6 +129,28 @@
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
+                // 첫 번째 주문의 기본값 업데이트
+                if (config.cards && config.cards.length > 0 && 
+                    config.deliveryTypes && config.deliveryTypes.length > 0 &&
+                    config.reviewMethods && config.reviewMethods.length > 0 &&
+                    config.reviewFees && config.reviewFees.length > 0) {
+                  
+                  setOrders(prevOrders => {
+                    const updated = [...prevOrders];
+                    if (updated.length > 0) {
+                      updated[0] = {
+                        ...updated[0],
+                        card: updated[0].card || config.cards[0],
+                        deliveryType: updated[0].deliveryType || config.deliveryTypes[0],
+                        reviewMethod: updated[0].reviewMethod || config.reviewMethods[0],
+                        reviewFee: updated[0].reviewFee || String(config.reviewFees[0])
+                      };
+                    }
+                    console.log('✅ 첫 주문 기본값 설정:', updated[0]);
+                    return updated;
+                  });
+                }
+                
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
                   setLearnedMappings(config.labelMappings);
                   console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
