@@ -64,129 +64,101 @@
         loadConfigFromSheet();
       }, []);
 
-      const loadConfigFromSheet = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
+const loadConfigFromSheet = async () => {
+  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
+  
+  if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+    setConfigError('⚠️ Apps Script URL을 설정해주세요');
+    setLoading(false);
+    return;
+  }
+
+  console.log('📡 Apps Script 호출 중...', APPS_SCRIPT_URL);
+
+  try {
+    const callbackName = 'jsonpCallback_' + Date.now();
+    
+    await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('Timeout'));
+      }, 10000);
+      
+      window[callbackName] = (data) => {
+        clearTimeout(timeout);
+        delete window[callbackName];
         
-        if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-          setConfigError('⚠️ Apps Script URL을 설정해주세요');
+        if (data.success && data.config) {
+          const config = data.config;
+          
+          // 1. 프리셋 데이터 설정
+          if (config.people && config.people.length > 0) {
+            const newPresets = {};
+            config.people.forEach(person => {
+              const siteIds = config.nameIdMappings[person.name] || {};
+              newPresets[person.name] = {
+                name: person.name,
+                reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
+                phone: person.phone,
+                address: person.address,
+                coupangId: siteIds['쿠팡'] || person.coupangId || '',
+                naverId: siteIds['네이버'] || person.naverId || '',
+                nickname: person.nickname || '',
+                bank: person.bank || '',
+                account: person.account || '',
+                accountWithHyphen: person.account || '',
+                accountHolder: person.accountHolder || ''
+              };
+            });
+            setPRESETS(newPresets);
+          }
+          
+          // 2. 기본 목록 설정 (카드, 배송, 리뷰 등)
+          if (config.sites) setSITES(config.sites);
+          if (config.siteIds) setSITE_IDS(config.siteIds);
+          if (config.nameIdMappings) setNAME_ID_MAPPINGS(config.nameIdMappings);
+          if (config.cards) setCARDS(config.cards);
+          if (config.deliveryTypes) setDELIVERY_TYPES(config.deliveryTypes);
+          if (config.reviewMethods) setREVIEW_METHODS(config.reviewMethods);
+          if (config.reviewFees) setREVIEW_FEES(config.reviewFees.map(String));
+          
+          // 3. 핵심 수정: 모든 주문에 시트 기본값 자동 적용 (0번째 값들)
+          setOrders(prevOrders => prevOrders.map(order => ({
+            ...order,
+            card: order.card || (config.cards && config.cards[0]) || '',
+            deliveryType: order.deliveryType || (config.deliveryTypes && config.deliveryTypes[0]) || '',
+            reviewMethod: order.reviewMethod || (config.reviewMethods && config.reviewMethods[0]) || '',
+            reviewFee: order.reviewFee || (config.reviewFees && String(config.reviewFees[0])) || ''
+          })));
+          
+          if (config.labelMappings) setLearnedMappings(config.labelMappings);
+          if (config.sitePatterns) setSITE_PATTERNS(config.sitePatterns);
+          
+          setConfigError('');
           setLoading(false);
-          return;
-        }
-
-        console.log('📡 Apps Script 호출 중...', APPS_SCRIPT_URL);
-
-        try {
-          // JSONP 방식으로 CORS 우회
-          const callbackName = 'jsonpCallback_' + Date.now();
-          
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              console.error('❌ Timeout 발생 (10초 경과)');
-              reject(new Error('Timeout'));
-            }, 10000);  // 3초 → 10초로 증가
-            
-            window[callbackName] = (data) => {
-              clearTimeout(timeout);
-              delete window[callbackName];
-              
-              if (data.success && data.config) {
-                const config = data.config;
-                
-                // 사람 정보 변환 (nameIdMappings 기반)
-                if (config.people && config.people.length > 0) {
-                  const newPresets = {};
-                  config.people.forEach(person => {
-                    const siteIds = config.nameIdMappings[person.name] || {};
-                    newPresets[person.name] = {
-                      name: person.name,
-                      reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
-                      phone: person.phone,
-                      address: person.address,
-                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
-                      naverId: siteIds['네이버'] || person.naverId || '',
-                      nickname: person.nickname || '',
-                      bank: person.bank || '',
-                      account: person.account || '',
-                      accountWithHyphen: person.account || '',
-                      accountHolder: person.accountHolder || ''
-                    };
-                  });
-                  setPRESETS(newPresets);
-                  console.log('✅ 프리셋 로드됨:', newPresets);
-                }
-                
-                if (config.sites && config.sites.length > 0) setSITES(config.sites);
-                if (config.siteIds) {
-                  setSITE_IDS(config.siteIds);
-                  console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
-                }
-                if (config.nameIdMappings) {
-                  setNAME_ID_MAPPINGS(config.nameIdMappings);
-                  console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
-                }
-                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
-                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
-                if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
-                
-                // 첫 번째 주문의 기본값 무조건 업데이트
-                setOrders(prevOrders => {
-                  const updated = [...prevOrders];
-                  if (updated.length > 0) {
-                    updated[0] = {
-                      ...updated[0],
-                      card: updated[0].card || (config.cards && config.cards[0]) || '',
-                      deliveryType: updated[0].deliveryType || (config.deliveryTypes && config.deliveryTypes[0]) || '',
-                      reviewMethod: updated[0].reviewMethod || (config.reviewMethods && config.reviewMethods[0]) || '',
-                      reviewFee: updated[0].reviewFee || (config.reviewFees && String(config.reviewFees[0])) || ''
-                    };
-                    console.log('✅ 첫 주문 기본값 설정:', updated[0]);
-                  }
-                  return updated;
-                });
-                
-                if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
-                  setLearnedMappings(config.labelMappings);
-                  console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
-                }
-                
-                if (config.sitePatterns && Object.keys(config.sitePatterns).length > 0) {
-                  setSITE_PATTERNS(config.sitePatterns);
-                  console.log('✅ 주문서 패턴 로드됨:', config.sitePatterns);
-                }
-                
-                setConfigError(''); // 에러 메시지 제거
-                setLoading(false);  // 성공 시 로딩 종료
-                console.log('✅ Apps Script 로딩 완료');
-                resolve();
-              } else {
-                setLoading(false);
-                reject(new Error(data.error || '설정을 불러올 수 없습니다'));
-              }
-            };
-            
-            const script = document.createElement('script');
-            script.src = APPS_SCRIPT_URL + '?action=getConfig&callback=' + callbackName;
-            script.onerror = () => {
-              clearTimeout(timeout);
-              reject(new Error('Script load failed'));
-            };
-            document.body.appendChild(script);
-            
-            setTimeout(() => {
-              if (document.body.contains(script)) {
-                document.body.removeChild(script);
-              }
-            }, 5000);
-          });
-          
-        } catch (error) {
-          console.error('❌ 설정 로딩 실패:', error);
-          setLoading(false);  // 실패 시에도 로딩 종료
-          alert('❌ Apps Script에서 설정을 불러올 수 없습니다!\n\n원인:\n1. Apps Script URL이 잘못됨\n2. Apps Script를 재배포 안 함\n3. 네트워크 오류\n\n확인:\n- Apps Script 실행 기록\n- HTML의 APPS_SCRIPT_URL');
-          setConfigError('Apps Script 로딩 실패');
+          console.log('✅ 시트 설정 및 모든 주문 기본값 로드 완료');
+          resolve();
+        } else {
+          setLoading(false);
+          reject(new Error(data.error || '설정 로드 실패'));
         }
       };
+      
+      const script = document.createElement('script');
+      script.src = APPS_SCRIPT_URL + '?action=getConfig&callback=' + callbackName;
+      script.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error('Script load failed'));
+      };
+      document.body.appendChild(script);
+    });
+    
+  } catch (error) {
+    console.error('❌ 설정 로딩 실패:', error);
+    setLoading(false);
+    alert('❌ 설정을 불러올 수 없습니다. Apps Script URL을 확인해 주세요.');
+    setConfigError('Apps Script 로딩 실패');
+  }
+};
 
     // 패턴 자동 추출 함수
     const extractPattern = (fullText, targetValue, fieldType) => {
@@ -499,7 +471,7 @@
 
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0],
         deliveryType: DELIVERY_TYPES[0] || '',
         reviewMethod: REVIEW_METHODS[0] || '',
         reviewFee: REVIEW_FEES[0] || '',
@@ -602,10 +574,10 @@
           person: matchedPerson,
           personId: defaultId,
           // 기본값 명시적 설정
-          card: newOrders[index].card || CARDS[0] || '와우',
-          deliveryType: newOrders[index].deliveryType || DELIVERY_TYPES[0] || '빈',
-          reviewMethod: newOrders[index].reviewMethod || REVIEW_METHODS[0] || '텍스트',
-          reviewFee: newOrders[index].reviewFee || REVIEW_FEES[0] || '1000',
+          card: newOrders[index].card || CARDS[0] || '',
+          deliveryType: newOrders[index].deliveryType || DELIVERY_TYPES[0] || '',
+          reviewMethod: newOrders[index].reviewMethod || REVIEW_METHODS[0] || '',
+          reviewFee: newOrders[index].reviewFee || REVIEW_FEES[0] || '',
           parsedReceiver: parsed.receiver,
           parsedPhone: parsed.phone,
           parsedAddress: parsed.address,
@@ -1261,30 +1233,33 @@ ${order.price}`;
           const dateStr = `${selectedDate.getFullYear()}. ${selectedDate.getMonth() + 1}. ${selectedDate.getDate()}`;
           
           // 직접입력 값 처리
-          const site = order.site === '직접입력' ? (order.customSite || '직접입력') : order.site;
-          const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId;
-          const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : order.reviewFee;
+          const site = order.site === '직접입력' ? (order.customSite || '직접입력') : (order.site || SITES[0]);
+          const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : (order.personId || '');
           
-          const dataToSend = {
-            date: dateStr,
-            site: site,
-            talkRoom: commonSettings.talkRoomName,
-            id: personId,
-            price: order.price,
-            card: order.card,
-            delivery: order.deliveryType,
-            review: order.reviewMethod,
-            reviewFee: reviewFee,
-            guideline: order.guideline,
-            cartNumber: order.cartNumber || '',  // 장바구니번호 (Q열)
-            orderNumber: order.orderNumber,       // 주문번호 (R열)
-            productUrl: order.productUrl || ''
-          };
-          
-          console.log('📤 전송 데이터:', dataToSend);
-          
-          return dataToSend;
-        });
+  const finalCard = order.card || CARDS[0] || '';
+  const finalDelivery = order.deliveryType || DELIVERY_TYPES[0] || '';
+  const finalReview = order.reviewMethod || REVIEW_METHODS[0] || '';
+  const finalReviewFee = order.reviewFee === '직접입력' 
+    ? (order.customFee || '직접입력') 
+    : (order.reviewFee || REVIEW_FEES[0] || '');
+
+return {
+    date: dateStr,
+    site: order.site === '직접입력' ? (order.customSite || '직접입력') : order.site,
+    talkRoom: commonSettings.talkRoomName,
+    id: order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId,
+    price: order.price,
+    // 여기서 한번 더 체크: 값이 비어있으면 현재 로드된 설정의 첫 번째 값을 보냅니다.
+    card: order.card || CARDS[0] || '',
+    delivery: order.deliveryType || DELIVERY_TYPES[0] || '',
+    review: order.reviewMethod || REVIEW_METHODS[0] || '',
+    reviewFee: order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : (order.reviewFee || REVIEW_FEES[0] || ''),
+    guideline: order.guideline,
+    cartNumber: order.cartNumber || '',
+    orderNumber: order.orderNumber,
+    productUrl: order.productUrl || ''
+  };
+});
 
         if (sheetsData.length === 0) {
           alert('⚠️ 저장할 주문이 없습니다.\n주문번호와 금액이 있는 주문만 저장됩니다.');
