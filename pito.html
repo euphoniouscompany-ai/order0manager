@@ -177,36 +177,22 @@
                   const newPresets = {};
                   config.people.forEach(person => {
                     const siteIds = config.nameIdMappings[person.name] || {};
-                    
-                    // 기본 필드 설정
                     newPresets[person.name] = {
                       name: person.name,
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
                       phone: person.phone,
-                      phoneNoHyphen: (person.phone || '').replace(/-/g, ''),
                       address: person.address,
                       coupangId: siteIds['쿠팡'] || person.coupangId || '',
                       naverId: siteIds['네이버'] || person.naverId || '',
-                      bank: person.bank || "신한은행",
-                      account: (person.account || "110254150254").replace(/-/g, ''),
-                      accountWithHyphen: person.account || "110254-150254",
-                      accountHolder: person.accountHolder || "이해운"
+                      nickname: person.nickname || '',
+                      bank: "신한은행",
+                      account: "110254150254",
+                      accountWithHyphen: "110254-150254",
+                      accountHolder: "이해운"  // 예금주 고정
                     };
-                    
-                    // person의 모든 추가 필드를 동적으로 복사 (nickname, 별명 등)
-                    Object.keys(person).forEach(key => {
-                      if (!newPresets[person.name][key]) {
-                        newPresets[person.name][key] = person[key];
-                      }
-                    });
                   });
                   setPRESETS(newPresets);
                   console.log('✅ 프리셋 로드됨:', newPresets);
-                  console.log('✅ 닉네임 확인:', 
-                    Object.keys(newPresets).map(name => 
-                      name + ': ' + (newPresets[name].nickname || '없음')
-                    )
-                  );
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
@@ -400,9 +386,9 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
-          reviewFee: '1000',
+          deliveryType: DELIVERY_TYPES[0] || '빈',
+          reviewMethod: REVIEW_METHODS[0] || '텍스트',
+          reviewFee: REVIEW_FEES[2] || '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -412,9 +398,9 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: '실배',
-        reviewMethod: '포토',
-        reviewFee: '1000',
+        deliveryType: DELIVERY_TYPES[0] || '빈',
+        reviewMethod: REVIEW_METHODS[0] || '텍스트',
+        reviewFee: REVIEW_FEES[2] || '1000',
         guideline: ''
       });
 
@@ -428,9 +414,9 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: '실배',
-          reviewMethod: '포토',
-          reviewFee: '1000',
+          deliveryType: DELIVERY_TYPES[0] || '빈',
+          reviewMethod: REVIEW_METHODS[0] || '텍스트',
+          reviewFee: REVIEW_FEES[2] || '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -540,9 +526,9 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
-            reviewFee: '1000',
+            deliveryType: DELIVERY_TYPES[0] || '빈',
+            reviewMethod: REVIEW_METHODS[0] || '텍스트',
+            reviewFee: REVIEW_FEES[2] || '1000',
             guideline: '',
             productUrl: '',
             parsed: false
@@ -550,9 +536,9 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: '실배',
-            reviewMethod: '포토',
-            reviewFee: '1000',
+            deliveryType: DELIVERY_TYPES[0] || '빈',
+            reviewMethod: REVIEW_METHODS[0] || '텍스트',
+            reviewFee: REVIEW_FEES[2] || '1000',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
@@ -668,7 +654,6 @@
           '번호': 'orderNumber',
           '아이디': 'personId',
           'ID': 'personId',
-          '닉네임': 'nickname',
           '이메일': 'naverId',
           '전화번호': 'phone',
           '연락처': 'phone',
