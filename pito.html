@@ -33,17 +33,10 @@
     const DEFAULT_PRESETS = {};
     const DEFAULT_SITES = [];
     const DEFAULT_IDS = [];
-
-    const DEFAULT_CARDS = [
-      "와우", "네현", "트레블",
-      "신-쿠", "금-쿠", "신-네", "금-네",
-      "신-앱", "금-앱", "신-스", "금-스", "신-토", "금-토",
-      "카신-쿠", "카신-네", "카신-앱", "카신-카", "카신-토", "카신-스"
-    ];
-
-    const DEFAULT_DELIVERY_TYPES = ["실배", "빈", "회수"];
-    const DEFAULT_REVIEW_METHODS = ["포토", "텍스트", "별", "구확"];
-    const DEFAULT_REVIEW_FEES = ["0", "500", "1000", "1500", "직접입력"];
+    const DEFAULT_CARDS = [];
+    const DEFAULT_DELIVERY_TYPES = [];
+    const DEFAULT_REVIEW_METHODS = [];
+    const DEFAULT_REVIEW_FEES = [];
 
     const OrderManager = () => {
       // 동적 설정 (review-setting 시트에서 로드)
@@ -71,16 +64,15 @@
       }, []);
 
       const loadConfigFromSheet = async () => {
-        // 일단 기본값으로 바로 시작
-        setLoading(false);
-        
-        // 백그라운드에서 시트 로딩 시도
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
+          setLoading(false);
           return;
         }
+
+        console.log('📡 Apps Script 호출 중...', APPS_SCRIPT_URL);
 
         try {
           // JSONP 방식으로 CORS 우회
@@ -88,8 +80,9 @@
           
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
+              console.error('❌ Timeout 발생 (10초 경과)');
               reject(new Error('Timeout'));
-            }, 3000);
+            }, 10000);  // 3초 → 10초로 증가
             
             window[callbackName] = (data) => {
               clearTimeout(timeout);
@@ -141,8 +134,11 @@
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
+                setLoading(false);  // 성공 시 로딩 종료
+                console.log('✅ Apps Script 로딩 완료');
                 resolve();
               } else {
+                setLoading(false);
                 reject(new Error(data.error || '설정을 불러올 수 없습니다'));
               }
             };
@@ -164,6 +160,7 @@
           
         } catch (error) {
           console.error('❌ 설정 로딩 실패:', error);
+          setLoading(false);  // 실패 시에도 로딩 종료
           alert('❌ Apps Script에서 설정을 불러올 수 없습니다!\n\n원인:\n1. Apps Script URL이 잘못됨\n2. Apps Script를 재배포 안 함\n3. 네트워크 오류\n\n확인:\n- Apps Script 실행 기록\n- HTML의 APPS_SCRIPT_URL');
           setConfigError('Apps Script 로딩 실패');
         }
