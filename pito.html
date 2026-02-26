@@ -287,13 +287,29 @@
       for (const pattern of addressPatterns) {
         const match = text.match(pattern);
         if (match) {
-          // 주소에서 우편번호, 배송요청사항 등 제거
-          let addr = match[match.length - 1].trim();
-          // 탭 문자 이후 내용 제거 (쿠팡 배송요청사항)
+          // 주소 추출
+          let addr = '';
+          
+          // 네이버 패턴: match[1]이 주소
+          if (match[1] && match[1].match(/[가-힣]/)) {
+            addr = match[1];
+          } else if (match[2]) {
+            // 쿠팡 등: match[2]가 주소
+            addr = match[2];
+          } else {
+            addr = match[match.length - 1];
+          }
+          
+          addr = addr.trim();
+          // 탭 문자 이후 내용 제거
           addr = addr.split('\t')[0].trim();
-          // 괄호 안 아파트명 등은 유지, 그 이후 불필요한 내용 제거
-          result.address = addr;
-          break;
+          // 우편번호 패턴 제거
+          addr = addr.replace(/\(\d{5}\).*$/g, '').replace(/\s*단독\s*$/g, '').trim();
+          
+          if (addr && addr.match(/[가-힣]/)) {
+            result.address = addr;
+            break;
+          }
         }
       }
 
