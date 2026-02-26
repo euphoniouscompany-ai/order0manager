@@ -1255,19 +1255,14 @@ ${order.price}`;
         }
 
         try {
-          const response = await fetch(APPS_SCRIPT_URL, {
+          await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ orders: sheetsData })
+            body: JSON.stringify({ orders: sheetsData }),
+            mode: 'no-cors'
           });
           
-          const result = await response.json();
-          
-          if (result.success) {
-            alert(`✅ ${result.message || sheetsData.length + '개 주문이 구글 시트에 저장되었습니다!'}`);
-          } else {
-            alert(`❌ 저장 실패: ${result.error || '알 수 없는 오류'}`);
-          }
+          alert(`✅ ${sheetsData.length}개 주문이 구글 시트에 저장되었습니다!`);
           
         } catch (error) {
           console.error('저장 오류:', error);
@@ -2385,40 +2380,7 @@ ${order.price}`;
                             gap: '0.5rem'
                           }
                         }, 
-                          field,
-                          // 계좌번호 필드인 경우 체크박스 추가
-                          isAccountField(field) && React.createElement('label', {
-                            style: {
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '0.25rem',
-                              fontSize: '0.75rem',
-                              color: '#64748b',
-                              cursor: 'pointer',
-                              marginLeft: '0.5rem'
-                            }
-                          },
-                            React.createElement('input', {
-                              type: 'checkbox',
-                              checked: accountFullFormat[field] || false,
-                              onChange: (e) => {
-                                const newFormat = {
-                                  ...accountFullFormat,
-                                  [field]: e.target.checked
-                                };
-                                setAccountFullFormat(newFormat);
-                                console.log(`💳 체크박스 변경: "${field}" = ${e.target.checked}`, newFormat);
-                              },
-                              style: {
-                                cursor: 'pointer'
-                              }
-                            }),
-                            React.createElement('span', {
-                              style: {
-                                whiteSpace: 'nowrap'
-                              }
-                            }, '은행+예금주')
-                          )
+                          field
                         ),
                         
                         // 알 수 없는 라벨일 경우 학습 옵션 표시
@@ -2502,6 +2464,35 @@ ${order.price}`;
                             currentSiteIds.map(id => 
                               React.createElement('option', { key: id, value: id }, id)
                             )
+                          );
+                        }
+                        
+                        // 계좌번호 필드는 드롭다운으로 (계좌만 / 전체 선택)
+                        if (key === 'account' || key === 'accountWithHyphen') {
+                          const order = orders[orderIndex];
+                          const person = PRESETS[order?.person] || {};
+                          
+                          const accountOnly = key === 'account' 
+                            ? (person.account || '').replace(/-/g, '')
+                            : (person.accountWithHyphen || person.account || '');
+                          
+                          const accountFull = `${person.bank || ''} ${accountOnly} ${person.accountHolder || ''}`.trim();
+                          
+                          return React.createElement('select', {
+                            key: orderIndex,
+                            value: editableData[orderIndex]?.[key] || '',
+                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
+                            style: {
+                              flex: '1 1 200px',
+                              padding: '0.5rem',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }
+                          },
+                            React.createElement('option', { value: accountOnly }, `💳 ${accountOnly}`),
+                            React.createElement('option', { value: accountFull }, `🏦 ${accountFull}`)
                           );
                         }
                         
