@@ -337,12 +337,12 @@
           site: '',
           orderNumber: '',
           price: '',
-          person: Object.keys(PRESETS)[orders.length % 6],
-          personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
-          card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: '1000',
+          person: '',  // 빈 상태
+          personId: '',  // 빈 상태
+          card: '',
+          deliveryType: '',
+          reviewMethod: '',
+          reviewFee: '',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -567,69 +567,54 @@
       };
 
       // 필드명을 데이터 키로 매핑
-      const [learnedMappings, setLearnedMappings] = useState(() => {
-        const saved = localStorage.getItem('learnedMappings');
-        return saved ? JSON.parse(saved) : {};
-      });
+      // 라벨 매핑은 시트에서만 로드
+      const [learnedMappings, setLearnedMappings] = useState({});
 
       const mapFieldToKey = (fieldName) => {
-        // 먼저 학습된 매핑 확인
+        // 시트에서 로드한 매핑만 사용
         if (learnedMappings[fieldName]) {
           return learnedMappings[fieldName];
         }
         
-        const mappings = {
-          '이름': 'name',
-          '성명': 'name',
-          '구매자': 'name',
-          '성함': 'name',
-          '수취인': 'receiver',
-          '받는분': 'receiver',
-          '받는사람': 'receiver',
-          '주문번호': 'orderNumber',
-          '번호': 'orderNumber',
-          '아이디': 'personId',
-          'ID': 'personId',
-          '닉네임': 'nickname',
-          '이메일': 'naverId',
-          '전화번호': 'phone',
-          '연락처': 'phone',
-          '핸드폰': 'phone',
-          '주소': 'address',
-          '배송지': 'address',
-          '금액': 'price',
-          '가격': 'price',
-          '결제금액': 'price',
-          '사이트': 'site',
-          '채널': 'site',
-          '구매채널': 'site',
-          '카드': 'card',
-          '배송': 'deliveryType',
-          '리뷰': 'reviewMethod',
-          '립비': 'reviewFee',
-          '은행': 'bank',
-          '은행명': 'bank',
-          '계좌': 'accountWithHyphen',
-          '계좌번호': 'accountWithHyphen',
-          '은행 계좌번호': 'accountWithHyphen',
-          '예금주': 'accountHolder',
-          '예금주명': 'accountHolder',
-          '구입 금액': 'price',
-          '구입금액': 'price'
-        };
-        
-        return mappings[fieldName] || fieldName;
+        // 매핑 없으면 그대로 반환
+        const result = learnedMappings[fieldName];
+        if (!result) {
+          console.warn('⚠️ 매핑되지 않은 라벨:', fieldName, '→ 그대로 사용');
+        }
+        return result || fieldName;
       };
 
-      // 라벨 학습 저장
-      const saveLearnedMapping = (label, key) => {
-        const newMappings = {
-          ...learnedMappings,
-          [label]: key
-        };
-        setLearnedMappings(newMappings);
-        localStorage.setItem('learnedMappings', JSON.stringify(newMappings));
-        alert(`✅ "${label}" → "${key}" 매핑이 저장되었습니다!`);
+      // 새 라벨 매핑 저장 (Apps Script로 전송)
+      const saveLearnedMapping = async (label, key) => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
+        
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              labels: { [label]: key }
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 로컬 state에도 반영
+            setLearnedMappings({
+              ...learnedMappings,
+              [label]: key
+            });
+            alert(`✅ "${label}" → "${key}" 매핑이 시트에 저장되었습니다!`);
+            
+            // 페이지 새로고침하여 최신 데이터 로드
+            window.location.reload();
+          } else {
+            alert(`❌ 저장 실패: ${result.error}`);
+          }
+        } catch (error) {
+          console.error('라벨 매핑 저장 실패:', error);
+          alert(`❌ 저장 실패: ${error.message}`);
+        }
       };
 
       // 주문 선택 토글
@@ -651,6 +636,27 @@
         if (selectedOrders.length === 0) {
           alert('⚠️ 출력할 주문을 선택해주세요');
           return '';
+        }
+        
+        // 폼 양식에서 은행 관련 필드 감지
+        const lines = formTemplate.split('\n').filter(l => l.trim());
+        const bankFields = ['은행', '계좌번호', '예금주', '계좌'];
+        const hasBankField = lines.some(line => {
+          const fieldName = line.replace(/[:\：].*$/, '').trim();
+          return bankFields.some(f => fieldName.includes(f));
+        });
+        
+        // 은행, 계좌, 예금주가 세 개 모두 있는지 확인
+        const hasBankName = lines.some(line => line.includes('은행') && !line.includes('계좌') && !line.includes('예금주'));
+        const hasAccount = lines.some(line => line.includes('계좌'));
+        const hasAccountHolder = lines.some(line => line.includes('예금주'));
+        const hasAllThree = hasBankName && hasAccount && hasAccountHolder;
+        
+        // 은행 관련 필드가 있는데 세 개가 다 없으면 → 자동으로 합쳐서 출력
+        const shouldCombineBankInfo = hasBankField && !hasAllThree;
+        
+        if (shouldCombineBankInfo) {
+          console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
         }
         
         return selectedOrders.map(orderIndex => {
@@ -681,7 +687,22 @@
               if (match) {
                 const fieldName = match[1].trim();
                 const key = mapFieldToKey(fieldName);
-                const value = data[key] || '';
+                
+                // 복합 라벨 처리
+                let value = '';
+                if (key === '__BANK_ACCOUNT_HOLDER__') {
+                  value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                } else if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
+                  const account = (data.account || data.accountWithHyphen || '').replace(/-/g, '');
+                  value = `${data.bank || ''} ${account} ${data.accountHolder || ''}`.trim();
+                }
+                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때
+                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder')) {
+                  // 은행 관련 필드면 세 개 합쳐서 출력
+                  value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
+                } else {
+                  value = data[key] || '';
+                }
                 
                 if (removeLabels) {
                   return value;
@@ -756,16 +777,14 @@
         accountFormat: 'hyphen' // 'hyphen' or 'none'
       });
 
-      const [savedPresets, setSavedPresets] = useState(() => {
-        const saved = localStorage.getItem('outputPresets');
-        return saved ? JSON.parse(saved) : {
-          "기본": {
-            separator: '/',
-            phoneFormat: 'hyphen',
-            accountFormat: 'hyphen',
-            customTemplate: ''
-          }
-        };
+      // 출력 프리셋 (localStorage 제거)
+      const [savedPresets, setSavedPresets] = useState({
+        "기본": {
+          separator: '/',
+          phoneFormat: 'hyphen',
+          accountFormat: 'hyphen',
+          customTemplate: ''
+        }
       });
 
       const [presetName, setPresetName] = useState('');
@@ -788,10 +807,10 @@
         };
         
         setSavedPresets(newPresets);
-        localStorage.setItem('outputPresets', JSON.stringify(newPresets));
+        // localStorage 제거
         setPresetName('');
         setShowPresetDialog(false);
-        alert(`✅ "${presetName}" 프리셋이 저장되었습니다!`);
+        alert(`✅ "${presetName}" 프리셋이 저장되었습니다! (세션에만 유지)`);
       };
 
       const loadPreset = (name) => {
@@ -818,7 +837,7 @@
           const newPresets = {...savedPresets};
           delete newPresets[name];
           setSavedPresets(newPresets);
-          localStorage.setItem('outputPresets', JSON.stringify(newPresets));
+          // localStorage 제거
           alert(`✅ "${name}" 프리셋이 삭제되었습니다`);
         }
       };
@@ -1879,24 +1898,6 @@ ${order.price}`;
                   }
                 },
                   React.createElement('div'),
-                  Object.keys(learnedMappings).length > 0 && React.createElement('button', {
-                    onClick: () => {
-                      if (confirm(`학습된 ${Object.keys(learnedMappings).length}개 매핑을 모두 삭제하시겠습니까?`)) {
-                        setLearnedMappings({});
-                        localStorage.removeItem('learnedMappings');
-                        alert('✅ 학습 데이터가 초기화되었습니다');
-                      }
-                    },
-                    style: {
-                      fontSize: '0.75rem',
-                      padding: '0.25rem 0.5rem',
-                      background: '#fef2f2',
-                      border: '1px solid #fca5a5',
-                      borderRadius: '4px',
-                      color: '#991b1b',
-                      cursor: 'pointer'
-                    }
-                  }, `📚 학습된 매핑 ${Object.keys(learnedMappings).length}개`)
                 ),
                 React.createElement('textarea', {
                   value: formTemplate,
@@ -2103,6 +2104,7 @@ ${order.price}`;
                           React.createElement('option', { value: 'bank' }, '은행'),
                           React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
                           React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
+                          React.createElement('option', { value: 'accountHolder' }, '예금주'),
                           React.createElement('option', { value: 'deliveryType' }, '배송'),
                           React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
                           React.createElement('option', { value: 'reviewFee' }, '립비')
