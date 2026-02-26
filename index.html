@@ -180,18 +180,23 @@
       }
       
       const index = fullText.indexOf(targetValue);
-      const before = fullText.substring(Math.max(0, index - 50), index);  // 30 → 50으로 확대
-      const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 10));
+      
+      // 바로 앞 20자만 (광고 문구 제외)
+      const before = fullText.substring(Math.max(0, index - 20), index);
+      const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 5));
       
       console.log(`패턴 추출: "${targetValue}"`);
-      console.log(`  앞 50자: "${before}"`);
-      console.log(`  뒤 10자: "${after}"`);
+      console.log(`  앞 20자: "${before}"`);
+      console.log(`  뒤 5자: "${after}"`);
       
-      // 라벨 추출: 줄바꿈 제거 후 마지막 단어
-      const beforeCleaned = before.replace(/\n/g, ' ').trim();
-      const labelMatch = beforeCleaned.match(/([가-힣a-zA-Z\s]{2,15})$/);
-      const label = labelMatch ? labelMatch[1].trim() : '';
+      // 줄바꿈, 탭, 여러 공백 제거
+      const beforeCleaned = before.replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
       
+      // 마지막 단어만 추출 (2-8자)
+      const words = beforeCleaned.split(' ');
+      const label = words[words.length - 1] || '';
+      
+      console.log(`  정제된 앞: "${beforeCleaned}"`);
       console.log(`  라벨: "${label}"`);
       
       // 값 타입별 패턴
@@ -206,22 +211,17 @@
         valuePattern = '([^\\t\\n]+)';
       }
       
-      // 구분자 감지 (줄바꿈 무시)
-      const lastChar = beforeCleaned.slice(-1);
+      // 구분자: 라벨과 값 사이
       let separator = '';
-      if (lastChar === '\t') {
-        separator = '\\t';
-      } else if (lastChar === ':' || lastChar === '：') {
-        separator = '[:\\：]\\s*';
-      } else if (lastChar === ' ') {
-        separator = '\\s*';
-      } else if (/[가-힣a-zA-Z]/.test(lastChar)) {
-        separator = '';
-      }
+      const lastChar = beforeCleaned.slice(-1);
       
-      // 특수 케이스
-      if (label.includes('배송지명') && after.startsWith('(')) {
-        return label + '([가-힣]+)\\(';
+      if (lastChar === ':' || lastChar === '：') {
+        separator = '[:\\：]\\s*';
+      } else if (label && /[가-힣a-zA-Z]/.test(lastChar)) {
+        // 라벨 바로 뒤에 값
+        separator = '\\s*';
+      } else {
+        separator = '\\s*';
       }
       
       const pattern = label + separator + valuePattern;
