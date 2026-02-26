@@ -135,21 +135,19 @@
                     config.reviewMethods && config.reviewMethods.length > 0 &&
                     config.reviewFees && config.reviewFees.length > 0) {
                   
-                  setOrders(prevOrders => {
-                    const updated = [...prevOrders];
-                    if (updated.length > 0) {
-                      updated[0] = {
-                        ...updated[0],
-                        card: updated[0].card || config.cards[0],
-                        deliveryType: updated[0].deliveryType || config.deliveryTypes[0],
-                        reviewMethod: updated[0].reviewMethod || config.reviewMethods[0],
-                        reviewFee: updated[0].reviewFee || String(config.reviewFees[0])
-                      };
-                    }
-                    console.log('✅ 첫 주문 기본값 설정:', updated[0]);
-                    return updated;
-                  });
-                }
+// index (11).html의 98~109행 부분을 아래로 교체하세요.
+setOrders(prevOrders => {
+  const newOrders = prevOrders.map(order => ({
+    ...order,
+    // 기존에 값이 없을 때만 시트에서 불러온 첫 번째 값을 할당합니다.
+    card: order.card || (config.cards && config.cards[0]) || '',
+    deliveryType: order.deliveryType || (config.deliveryTypes && config.deliveryTypes[0]) || '',
+    reviewMethod: order.reviewMethod || (config.reviewMethods && config.reviewMethods[0]) || '',
+    reviewFee: order.reviewFee || (config.reviewFees && String(config.reviewFees[0])) || ''
+  }));
+  console.log('✅ 모든 주문에 시트 기본값 적용 완료');
+  return newOrders;
+});
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
                   setLearnedMappings(config.labelMappings);
@@ -505,7 +503,7 @@
 
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
-        transactionDate: new Date().toISOString().split('T')[0],
+        transactionDate: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0],
         deliveryType: DELIVERY_TYPES[0] || '',
         reviewMethod: REVIEW_METHODS[0] || '',
         reviewFee: REVIEW_FEES[0] || '',
@@ -1267,30 +1265,33 @@ ${order.price}`;
           const dateStr = `${selectedDate.getFullYear()}. ${selectedDate.getMonth() + 1}. ${selectedDate.getDate()}`;
           
           // 직접입력 값 처리
-          const site = order.site === '직접입력' ? (order.customSite || '직접입력') : order.site;
-          const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId;
-          const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : order.reviewFee;
+          const site = order.site === '직접입력' ? (order.customSite || '직접입력') : (order.site || SITES[0]);
+          const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : (order.personId || '');
           
-          const dataToSend = {
-            date: dateStr,
-            site: site,
-            talkRoom: commonSettings.talkRoomName,
-            id: personId,
-            price: order.price,
-            card: order.card,
-            delivery: order.deliveryType,
-            review: order.reviewMethod,
-            reviewFee: reviewFee,
-            guideline: order.guideline,
-            cartNumber: order.cartNumber || '',  // 장바구니번호 (Q열)
-            orderNumber: order.orderNumber,       // 주문번호 (R열)
-            productUrl: order.productUrl || ''
-          };
-          
-          console.log('📤 전송 데이터:', dataToSend);
-          
-          return dataToSend;
-        });
+  const finalCard = order.card || CARDS[0] || '';
+  const finalDelivery = order.deliveryType || DELIVERY_TYPES[0] || '';
+  const finalReview = order.reviewMethod || REVIEW_METHODS[0] || '';
+  const finalReviewFee = order.reviewFee === '직접입력' 
+    ? (order.customFee || '직접입력') 
+    : (order.reviewFee || REVIEW_FEES[0] || '');
+
+return {
+    date: dateStr,
+    site: order.site === '직접입력' ? (order.customSite || '직접입력') : order.site,
+    talkRoom: commonSettings.talkRoomName,
+    id: order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId,
+    price: order.price,
+    // 여기서 한번 더 체크: 값이 비어있으면 현재 로드된 설정의 첫 번째 값을 보냅니다.
+    card: order.card || CARDS[0] || '',
+    delivery: order.deliveryType || DELIVERY_TYPES[0] || '',
+    review: order.reviewMethod || REVIEW_METHODS[0] || '',
+    reviewFee: order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : (order.reviewFee || REVIEW_FEES[0] || ''),
+    guideline: order.guideline,
+    cartNumber: order.cartNumber || '',
+    orderNumber: order.orderNumber,
+    productUrl: order.productUrl || ''
+  };
+});
 
         if (sheetsData.length === 0) {
           alert('⚠️ 저장할 주문이 없습니다.\n주문번호와 금액이 있는 주문만 저장됩니다.');
