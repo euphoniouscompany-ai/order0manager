@@ -1452,11 +1452,23 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 데이터 테이블의 사이트 정보로 아이디 목록 결정
+                      // 현재 주문의 사이트로 ID 목록 결정
                       (() => {
-                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
-                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
-                        console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
+                        const selectedSite = order.site || '';
+                        let currentSiteIds = SITE_IDS[selectedSite] || [];
+                        
+                        // 현재 personId가 목록에 없으면 추가
+                        if (order.personId && !currentSiteIds.includes(order.personId)) {
+                          currentSiteIds = [order.personId, ...currentSiteIds];
+                        }
+                        
+                        // 기본값 추가
+                        if (!currentSiteIds.includes('직접입력')) {
+                          currentSiteIds = [...currentSiteIds, '직접입력'];
+                        }
+                        
+                        console.log(`주문 ${index}: 사이트="${selectedSite}", personId="${order.personId}", 목록:`, currentSiteIds);
+                        
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
