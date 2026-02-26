@@ -913,6 +913,8 @@
           return '';
         }
         
+        console.log('💳 현재 accountFullFormat:', accountFullFormat);
+        
         // 폼 양식에서 은행 관련 필드 감지
         const lines = formTemplate.split('\n').filter(l => l.trim());
         const bankFields = ['은행', '계좌번호', '예금주', '계좌'];
@@ -1238,7 +1240,8 @@ ${order.price}`;
             review: order.reviewMethod,
             reviewFee: reviewFee,
             guideline: order.guideline,
-            orderNumber: finalOrderNumber,  // 장바구니번호 우선
+            cartNumber: order.cartNumber || '',  // 장바구니번호 (Q열)
+            orderNumber: order.orderNumber,       // 주문번호 (R열)
             productUrl: order.productUrl || ''
           };
         });
