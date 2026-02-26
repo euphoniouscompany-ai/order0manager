@@ -49,6 +49,7 @@
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
       const [REVIEW_FEES, setREVIEW_FEES] = useState(DEFAULT_REVIEW_FEES);
+      const [SITE_PATTERNS, setSITE_PATTERNS] = useState({});  // 주문서 패턴
 
       // 로딩 상태
       const [loading, setLoading] = useState(true);
@@ -128,9 +129,30 @@
                 if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
+                // 첫 번째 주문의 기본값 무조건 업데이트
+                setOrders(prevOrders => {
+                  const updated = [...prevOrders];
+                  if (updated.length > 0) {
+                    updated[0] = {
+                      ...updated[0],
+                      card: updated[0].card || (config.cards && config.cards[0]) || '',
+                      deliveryType: updated[0].deliveryType || (config.deliveryTypes && config.deliveryTypes[0]) || '',
+                      reviewMethod: updated[0].reviewMethod || (config.reviewMethods && config.reviewMethods[0]) || '',
+                      reviewFee: updated[0].reviewFee || (config.reviewFees && String(config.reviewFees[0])) || ''
+                    };
+                    console.log('✅ 첫 주문 기본값 설정:', updated[0]);
+                  }
+                  return updated;
+                });
+                
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
                   setLearnedMappings(config.labelMappings);
                   console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
+                }
+                
+                if (config.sitePatterns && Object.keys(config.sitePatterns).length > 0) {
+                  setSITE_PATTERNS(config.sitePatterns);
+                  console.log('✅ 주문서 패턴 로드됨:', config.sitePatterns);
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
@@ -166,6 +188,64 @@
         }
       };
 
+    // 패턴 자동 추출 함수
+    const extractPattern = (fullText, targetValue, fieldType) => {
+      if (!targetValue || !fullText.includes(targetValue)) {
+        console.warn(`⚠️ "${targetValue}"를 찾을 수 없습니다`);
+        return '';
+      }
+      
+      const index = fullText.indexOf(targetValue);
+      
+      // 바로 앞 20자만 (광고 문구 제외)
+      const before = fullText.substring(Math.max(0, index - 20), index);
+      const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 5));
+      
+      console.log(`패턴 추출: "${targetValue}"`);
+      console.log(`  앞 20자: "${before}"`);
+      console.log(`  뒤 5자: "${after}"`);
+      
+      // 줄바꿈, 탭, 여러 공백 제거
+      const beforeCleaned = before.replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+      
+      // 마지막 단어만 추출 (2-8자)
+      const words = beforeCleaned.split(' ');
+      const label = words[words.length - 1] || '';
+      
+      console.log(`  정제된 앞: "${beforeCleaned}"`);
+      console.log(`  라벨: "${label}"`);
+      
+      // 값 타입별 패턴
+      let valuePattern = '';
+      if (fieldType === 'orderNumber') {
+        valuePattern = '([\\d-]+)';
+      } else if (fieldType === 'price') {
+        valuePattern = '([\\d,]+)';
+      } else if (fieldType === 'receiver') {
+        valuePattern = '([가-힣]{2,5})';
+      } else {
+        valuePattern = '([^\\t\\n]+)';
+      }
+      
+      // 구분자: 라벨과 값 사이
+      let separator = '';
+      const lastChar = beforeCleaned.slice(-1);
+      
+      if (lastChar === ':' || lastChar === '：') {
+        separator = '[:\\：]\\s*';
+      } else if (label && /[가-힣a-zA-Z]/.test(lastChar)) {
+        // 라벨 바로 뒤에 값
+        separator = '\\s*';
+      } else {
+        separator = '\\s*';
+      }
+      
+      const pattern = label + separator + valuePattern;
+      console.log(`  최종 패턴: "${pattern}"`);
+      
+      return pattern;
+    };
+
     // 범용 파싱 함수
     const parseOrderText = (text) => {
       const result = {
@@ -178,7 +258,7 @@
         detected: false
       };
 
-      // 사이트 감지 (다양한 키워드)
+      // 사이트 감지
       const siteKeywords = {
         "쿠팡": ["쿠팡", "coupang"],
         "네이버": ["네이버페이", "네이버파이낸셜", "네이버"],
@@ -186,8 +266,7 @@
         "지마켓": ["지마켓", "G마켓", "gmarket"],
         "11번가": ["11번가", "11st"],
         "SSG": ["SSG", "신세계"],
-        "무신사": ["무신사", "musinsa"],
-        "쿠팡": ["MY쿠팡", "마이쿠팡"]
+        "무신사": ["무신사", "musinsa"]
       };
 
       for (const [site, keywords] of Object.entries(siteKeywords)) {
@@ -197,20 +276,90 @@
         }
       }
 
-      // 주문번호 추출 (다양한 패턴)
-      const orderPatterns = [
-        /주문번호\s*(\d{10,})/i,              // 쿠팡: "주문번호 21100171701760"
-        /주문\s*번호[:\s]*(\d{10,})/i,
-        /order[:\s]*(?:no|number)[:\s]*(\d{10,})/i,
-        /번호[:\s]*(\d{10,})/i,
-        /(\d{14,20})/                         // 14-20자리 숫자 (쿠팡 주문번호)
-      ];
+      // 시트에 저장된 패턴으로 파싱 시도
+      if (result.site && SITE_PATTERNS[result.site]) {
+        const patterns = SITE_PATTERNS[result.site];
+        
+        if (patterns.orderNumber) {
+          try {
+            const regex = new RegExp(patterns.orderNumber, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.orderNumber = match[1].trim();
+            }
+          } catch (e) {
+            console.warn('주문번호 패턴 오류:', e);
+          }
+        }
+        
+        if (patterns.price) {
+          try {
+            const regex = new RegExp(patterns.price, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.price = match[1].replace(/,/g, '');
+            }
+          } catch (e) {
+            console.warn('금액 패턴 오류:', e);
+          }
+        }
+        
+        if (patterns.receiver) {
+          try {
+            const regex = new RegExp(patterns.receiver, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) {
+              result.receiver = match[1].trim();
+            }
+          } catch (e) {
+            console.warn('수취인 패턴 오류:', e);
+          }
+        }
+        
+        // 패턴으로 파싱 성공하면 반환
+        if (result.orderNumber && result.price) {
+          result.detected = true;
+          console.log('✅ 시트 패턴으로 파싱 성공:', result);
+          return result;
+        }
+      }
 
-      for (const pattern of orderPatterns) {
-        const match = text.match(pattern);
-        if (match && match[1]) {
-          result.orderNumber = match[1];
-          break;
+      // 기본 패턴으로 fallback
+
+      // 지마켓: 장바구니번호와 주문번호 둘 다 추출
+      if (result.site === '지마켓') {
+        const cartMatch = text.match(/장바구니번호\s*(\d{10,})/i);
+        const orderMatch = text.match(/주문번호\s*(\d{10,})/i);
+        
+        if (cartMatch && cartMatch[1]) {
+          result.cartNumber = cartMatch[1];
+        }
+        if (orderMatch && orderMatch[1]) {
+          result.orderNumber = orderMatch[1];
+        }
+        
+        console.log('지마켓 파싱:', { 
+          장바구니번호: result.cartNumber, 
+          주문번호: result.orderNumber 
+        });
+      }
+
+      // 주문번호 추출 (다양한 패턴)
+      if (!result.orderNumber) {
+        const orderPatterns = [
+          /주문번호\s*(\d{10,})/i,              // 쿠팡: "주문번호 21100171701760"
+          /주문\s*번호[:\s]*(\d{10,})/i,
+          /order[:\s]*(?:no|number)[:\s]*(\d{10,})/i,
+          /번호[:\s]*(\d{10,})/i,
+          /(\d{14,20})/                         // 14-20자리 숫자 (쿠팡 주문번호)
+        ];
+
+        for (const pattern of orderPatterns) {
+          const match = text.match(pattern);
+          if (match && match[1]) {
+            result.orderNumber = match[1];
+            break;
+          }
         }
       }
 
@@ -324,6 +473,7 @@
           rawText: '',
           site: '',
           orderNumber: '',
+          cartNumber: '',  // 장바구니번호 (지마켓 등)
           price: '',
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]]?.coupangId || '',
@@ -337,6 +487,16 @@
         }
       ]);
 
+      // 주문서 학습 UI
+      const [showLearningUI, setShowLearningUI] = useState(false);
+      const [learningData, setLearningData] = useState({
+        site: '',
+        rawText: '',
+        orderNumber: '',
+        price: '',
+        receiver: ''
+      });
+
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0],
@@ -347,18 +507,22 @@
       });
 
       const addOrder = () => {
+        // 첫 번째 주문을 템플릿으로 사용
+        const template = orders.length > 0 ? orders[0] : {};
+        
         setOrders([...orders, {
           id: Date.now(),
           rawText: '',
-          site: '',
+          site: template.site || '',  // 첫 번째 주문의 사이트 복사
           orderNumber: '',
+          cartNumber: '',  // 장바구니번호
           price: '',
-          person: '',  // 빈 상태
-          personId: '',  // 빈 상태
-          card: '',
-          deliveryType: '',
-          reviewMethod: '',
-          reviewFee: '',
+          person: '',
+          personId: '',
+          card: template.card || '',
+          deliveryType: template.deliveryType || '',
+          reviewMethod: template.reviewMethod || '',
+          reviewFee: template.reviewFee || '',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -429,18 +593,34 @@
         console.log(`✅ 최종 ID: ${defaultId}`);
 
         newOrders[index] = {
-          ...newOrders[index],
+          ...newOrders[index],  // 기존 값 유지
           rawText: text,
           site: detectedSite,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
+          cartNumber: parsed.cartNumber || '',  // 장바구니번호
           price: parsed.price || newOrders[index].price,
           person: matchedPerson,
           personId: defaultId,
+          // 기본값 명시적 설정
+          card: newOrders[index].card || CARDS[0] || '와우',
+          deliveryType: newOrders[index].deliveryType || DELIVERY_TYPES[0] || '빈',
+          reviewMethod: newOrders[index].reviewMethod || REVIEW_METHODS[0] || '텍스트',
+          reviewFee: newOrders[index].reviewFee || REVIEW_FEES[0] || '1000',
           parsedReceiver: parsed.receiver,
           parsedPhone: parsed.phone,
           parsedAddress: parsed.address,
           parsed: parsed.detected
         };
+        
+        console.log(`✅ 주문 업데이트 후:`, {
+          card: newOrders[index].card,
+          deliveryType: newOrders[index].deliveryType,
+          reviewMethod: newOrders[index].reviewMethod,
+          reviewFee: newOrders[index].reviewFee
+        });
+        
+        console.log('🔍 setOrders 직전 전체 order:', newOrders[index]);
+        
         setOrders(newOrders);
         
         // editableData도 즉시 업데이트
@@ -455,6 +635,7 @@
             phoneNoHyphen: (parsed.phone || preset.phone || '').replace(/-/g, ''),
             address: parsed.address || preset.address || '',
             orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
+            cartNumber: parsed.cartNumber || '',  // 장바구니번호
             personId: defaultId,
             price: parsed.price || newOrders[index].price,
             site: detectedSite,
@@ -467,6 +648,19 @@
           }
         };
         setEditableData(updatedEditableData);
+        
+        // 파싱 실패 시 학습 UI 표시
+        if (!parsed.orderNumber || !parsed.price || !parsed.receiver) {
+          console.log('🔍 파싱 불완전 → 학습 UI 표시');
+          setLearningData({
+            site: detectedSite || '직접입력',
+            rawText: text,
+            orderNumber: parsed.orderNumber || '',
+            price: parsed.price || '',
+            receiver: parsed.receiver || ''
+          });
+          setShowLearningUI(true);
+        }
       };
 
       const updateOrder = (index, field, value) => {
@@ -512,6 +706,7 @@
             rawText: '',
             site: '',
             orderNumber: '',
+            cartNumber: '',
             price: '',
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
@@ -541,6 +736,7 @@
       const [selectedOrders, setSelectedOrders] = useState([]);
       const [outputData, setOutputData] = useState({});
       const [editableData, setEditableData] = useState({}); // 편집 가능한 데이터
+      const [accountFullFormat, setAccountFullFormat] = useState({}); // 계좌번호 전체 형식 (은행+계좌+예금주)
 
       // 주문 선택 시 편집 데이터 초기화
       useEffect(() => {
@@ -637,6 +833,14 @@
         return result || fieldName;
       };
 
+      // 계좌번호 관련 필드인지 확인
+      const isAccountField = (fieldName) => {
+        const key = mapFieldToKey(fieldName);
+        const result = key === 'account' || key === 'accountWithHyphen';
+        console.log(`🔍 isAccountField("${fieldName}") → key="${key}", result=${result}`);
+        return result;
+      };
+
       // 새 라벨 매핑 저장 (Apps Script로 전송)
       const saveLearnedMapping = async (label, key) => {
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
@@ -672,6 +876,55 @@
         }
       };
 
+      // 주문서 패턴 저장
+      const saveSitePattern = async (site, orderNumber, price, receiver) => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
+        
+        // 패턴 추출
+        const orderNumberPattern = extractPattern(learningData.rawText, orderNumber, 'orderNumber');
+        const pricePattern = extractPattern(learningData.rawText, price, 'price');
+        const receiverPattern = extractPattern(learningData.rawText, receiver, 'receiver');
+        
+        console.log('추출된 패턴:', { orderNumberPattern, pricePattern, receiverPattern });
+        
+        try {
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              sitePattern: {
+                site: site,
+                orderNumberPattern: orderNumberPattern,
+                pricePattern: pricePattern,
+                receiverPattern: receiverPattern
+              }
+            })
+          });
+          
+          const result = await response.json();
+          
+          if (result.success) {
+            // 로컬 state 업데이트
+            setSITE_PATTERNS({
+              ...SITE_PATTERNS,
+              [site]: {
+                orderNumber: orderNumberPattern,
+                price: pricePattern,
+                receiver: receiverPattern
+              }
+            });
+            
+            console.log(`✅ "${site}" 주문서 패턴이 시트에 저장되었습니다`);
+            alert(`✅ "${site}" 패턴이 저장되었습니다!\n다음부터 자동으로 파싱됩니다.`);
+            setShowLearningUI(false);
+          } else {
+            alert(`❌ 저장 실패: ${result.error}`);
+          }
+        } catch (error) {
+          console.error('패턴 저장 실패:', error);
+          alert(`❌ 저장 실패: ${error.message}`);
+        }
+      };
+
       // 주문 선택 토글
       const toggleOrderSelection = (index) => {
         if (selectedOrders.includes(index)) {
@@ -693,6 +946,8 @@
           return '';
         }
         
+        console.log('💳 현재 accountFullFormat:', accountFullFormat);
+        
         // 폼 양식에서 은행 관련 필드 감지
         const lines = formTemplate.split('\n').filter(l => l.trim());
         const bankFields = ['은행', '계좌번호', '예금주', '계좌'];
@@ -707,12 +962,12 @@
         const hasAccountHolder = lines.some(line => line.includes('예금주'));
         const hasAllThree = hasBankName && hasAccount && hasAccountHolder;
         
-        // 은행 관련 필드가 있는데 세 개가 다 없으면 → 자동으로 합쳐서 출력
-        const shouldCombineBankInfo = hasBankField && !hasAllThree;
+        // 자동 통합 비활성화 (체크박스로만 제어)
+        const shouldCombineBankInfo = false;
         
-        if (shouldCombineBankInfo) {
-          console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
-        }
+        // if (shouldCombineBankInfo) {
+        //   console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
+        // }
         
         return selectedOrders.map(orderIndex => {
           const data = editableData[orderIndex];
@@ -751,9 +1006,18 @@
                   const account = (data.account || data.accountWithHyphen || '').replace(/-/g, '');
                   value = `${data.bank || ''} ${account} ${data.accountHolder || ''}`.trim();
                 }
-                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때
-                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder')) {
+                // 계좌번호 필드 + 체크박스 선택됨 (최우선)
+                else if ((key === 'account' || key === 'accountWithHyphen') && accountFullFormat[fieldName]) {
+                  console.log(`✅ 계좌번호 전체 형식: "${fieldName}" 체크됨 (자동통합 무시)`);
+                  const accountValue = key === 'account' 
+                    ? (data.account || data.accountWithHyphen || '').replace(/-/g, '')
+                    : (data.accountWithHyphen || data.account || '');
+                  value = `${data.bank || ''} ${accountValue} ${data.accountHolder || ''}`.trim();
+                }
+                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때 (단, 체크박스 없을 때만)
+                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder') && !accountFullFormat[fieldName]) {
                   // 은행 관련 필드면 세 개 합쳐서 출력
+                  console.log(`🏦 자동 통합 적용: "${fieldName}" (체크박스 없음)`);
                   value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
                 } else {
                   value = data[key] || '';
@@ -979,6 +1243,13 @@ ${order.price}`;
       const saveToGoogleSheets = async () => {
         const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzf5UwoqkCPPll-YQ2iZIXmBi81Tq53h-nYZH3-TLTK8UmBQWvA4zxmkGyoQ1CMklvZ/exec';
         
+        console.log('💾 저장 시작 - orders state:', orders.map(o => ({
+          card: o.card,
+          deliveryType: o.deliveryType,
+          reviewMethod: o.reviewMethod,
+          reviewFee: o.reviewFee
+        })));
+        
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
           return;
@@ -994,7 +1265,7 @@ ${order.price}`;
           const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId;
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : order.reviewFee;
           
-          return {
+          const dataToSend = {
             date: dateStr,
             site: site,
             talkRoom: commonSettings.talkRoomName,
@@ -1005,9 +1276,14 @@ ${order.price}`;
             review: order.reviewMethod,
             reviewFee: reviewFee,
             guideline: order.guideline,
-            orderNumber: order.orderNumber,
+            cartNumber: order.cartNumber || '',  // 장바구니번호 (Q열)
+            orderNumber: order.orderNumber,       // 주문번호 (R열)
             productUrl: order.productUrl || ''
           };
+          
+          console.log('📤 전송 데이터:', dataToSend);
+          
+          return dataToSend;
         });
 
         if (sheetsData.length === 0) {
@@ -2135,9 +2411,14 @@ ${order.price}`;
                           style: {
                             fontWeight: '500',
                             fontSize: '0.9rem',
-                            color: isUnknown ? '#ef4444' : '#475569'
+                            color: isUnknown ? '#ef4444' : '#475569',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.5rem'
                           }
-                        }, field),
+                        }, 
+                          field
+                        ),
                         
                         // 알 수 없는 라벨일 경우 학습 옵션 표시
                         isUnknown && React.createElement('select', {
@@ -2220,6 +2501,35 @@ ${order.price}`;
                             currentSiteIds.map(id => 
                               React.createElement('option', { key: id, value: id }, id)
                             )
+                          );
+                        }
+                        
+                        // 계좌번호 필드는 드롭다운으로 (계좌만 / 전체 선택)
+                        if (key === 'account' || key === 'accountWithHyphen') {
+                          const order = orders[orderIndex];
+                          const person = PRESETS[order?.person] || {};
+                          
+                          const accountOnly = key === 'account' 
+                            ? (person.account || '').replace(/-/g, '')
+                            : (person.accountWithHyphen || person.account || '');
+                          
+                          const accountFull = `${person.bank || ''} ${accountOnly} ${person.accountHolder || ''}`.trim();
+                          
+                          return React.createElement('select', {
+                            key: orderIndex,
+                            value: editableData[orderIndex]?.[key] || '',
+                            onChange: (e) => updateEditableData(orderIndex, key, e.target.value),
+                            style: {
+                              flex: '1 1 200px',
+                              padding: '0.5rem',
+                              border: '1px solid #cbd5e1',
+                              borderRadius: '6px',
+                              fontSize: '0.85rem',
+                              cursor: 'pointer'
+                            }
+                          },
+                            React.createElement('option', { value: accountOnly }, `💳 ${accountOnly}`),
+                            React.createElement('option', { value: accountFull }, `🏦 ${accountFull}`)
                           );
                         }
                         
@@ -2335,6 +2645,145 @@ ${order.price}`;
                     boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
                   }
                 }, '🗑️ 전체 초기화')
+              )
+            ),
+            
+            // 주문서 학습 UI 모달
+            showLearningUI && React.createElement('div', {
+              style: {
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.7)',
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 1000
+              },
+              onClick: () => setShowLearningUI(false)
+            },
+              React.createElement('div', {
+                style: {
+                  background: 'white',
+                  padding: '2rem',
+                  borderRadius: '12px',
+                  width: '90%',
+                  maxWidth: '600px',
+                  maxHeight: '80vh',
+                  overflow: 'auto'
+                },
+                onClick: (e) => e.stopPropagation()
+              },
+                React.createElement('h2', {
+                  style: { marginTop: 0, marginBottom: '1rem', color: '#1e293b' }
+                }, '🔍 주문서 학습'),
+                
+                React.createElement('p', {
+                  style: { color: '#64748b', marginBottom: '1.5rem' }
+                }, `"${learningData.site}" 주문서를 인식하지 못했습니다. 아래 값을 입력하면 다음부터 자동으로 인식합니다.`),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '주문번호'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.orderNumber,
+                    onChange: (e) => setLearningData({...learningData, orderNumber: e.target.value}),
+                    placeholder: '주문서에서 주문번호를 복사해서 붙여넣으세요',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '금액'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.price,
+                    onChange: (e) => setLearningData({...learningData, price: e.target.value}),
+                    placeholder: '결제 금액을 입력하세요 (예: 68400)',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { marginBottom: '1.5rem' }
+                },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.5rem' }
+                  }, '수취인'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.receiver,
+                    onChange: (e) => setLearningData({...learningData, receiver: e.target.value}),
+                    placeholder: '받는 사람 이름을 입력하세요',
+                    style: {
+                      width: '100%',
+                      padding: '0.75rem',
+                      border: '2px solid #cbd5e1',
+                      borderRadius: '6px',
+                      fontSize: '1rem'
+                    }
+                  })
+                ),
+                
+                React.createElement('div', {
+                  style: { display: 'flex', gap: '1rem', justifyContent: 'flex-end' }
+                },
+                  React.createElement('button', {
+                    onClick: () => setShowLearningUI(false),
+                    style: {
+                      padding: '0.75rem 1.5rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      background: 'white',
+                      cursor: 'pointer'
+                    }
+                  }, '취소'),
+                  React.createElement('button', {
+                    onClick: () => {
+                      if (!learningData.orderNumber || !learningData.price || !learningData.receiver) {
+                        alert('모든 값을 입력해주세요!');
+                        return;
+                      }
+                      saveSitePattern(
+                        learningData.site,
+                        learningData.orderNumber,
+                        learningData.price,
+                        learningData.receiver
+                      );
+                    },
+                    style: {
+                      padding: '0.75rem 1.5rem',
+                      border: 'none',
+                      borderRadius: '6px',
+                      background: '#3b82f6',
+                      color: 'white',
+                      cursor: 'pointer',
+                      fontWeight: '600'
+                    }
+                  }, '✅ 학습 저장')
+                )
               )
             )
           )
