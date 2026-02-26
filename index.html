@@ -805,7 +805,9 @@
       // 계좌번호 관련 필드인지 확인
       const isAccountField = (fieldName) => {
         const key = mapFieldToKey(fieldName);
-        return key === 'account' || key === 'accountWithHyphen';
+        const result = key === 'account' || key === 'accountWithHyphen';
+        console.log(`🔍 isAccountField("${fieldName}") → key="${key}", result=${result}`);
+        return result;
       };
 
       // 새 라벨 매핑 저장 (Apps Script로 전송)
@@ -929,12 +931,12 @@
         const hasAccountHolder = lines.some(line => line.includes('예금주'));
         const hasAllThree = hasBankName && hasAccount && hasAccountHolder;
         
-        // 은행 관련 필드가 있는데 세 개가 다 없으면 → 자동으로 합쳐서 출력
-        const shouldCombineBankInfo = hasBankField && !hasAllThree;
+        // 자동 통합 비활성화 (체크박스로만 제어)
+        const shouldCombineBankInfo = false;
         
-        if (shouldCombineBankInfo) {
-          console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
-        }
+        // if (shouldCombineBankInfo) {
+        //   console.log('🏦 은행정보 자동 통합: 은행/계좌/예금주 중 하나만 감지됨 → 세 개 합쳐서 출력');
+        // }
         
         return selectedOrders.map(orderIndex => {
           const data = editableData[orderIndex];
@@ -973,17 +975,18 @@
                   const account = (data.account || data.accountWithHyphen || '').replace(/-/g, '');
                   value = `${data.bank || ''} ${account} ${data.accountHolder || ''}`.trim();
                 }
-                // 계좌번호 필드 + 체크박스 선택됨 (fieldName으로 확인)
+                // 계좌번호 필드 + 체크박스 선택됨 (최우선)
                 else if ((key === 'account' || key === 'accountWithHyphen') && accountFullFormat[fieldName]) {
-                  console.log(`✅ 계좌번호 전체 형식: "${fieldName}" 체크됨`);
+                  console.log(`✅ 계좌번호 전체 형식: "${fieldName}" 체크됨 (자동통합 무시)`);
                   const accountValue = key === 'account' 
                     ? (data.account || data.accountWithHyphen || '').replace(/-/g, '')
                     : (data.accountWithHyphen || data.account || '');
                   value = `${data.bank || ''} ${accountValue} ${data.accountHolder || ''}`.trim();
                 }
-                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때
-                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder')) {
+                // 자동 통합: 은행/계좌/예금주 중 하나만 있을 때 (단, 체크박스 없을 때만)
+                else if (shouldCombineBankInfo && (key === 'bank' || key === 'account' || key === 'accountWithHyphen' || key === 'accountHolder') && !accountFullFormat[fieldName]) {
                   // 은행 관련 필드면 세 개 합쳐서 출력
+                  console.log(`🏦 자동 통합 적용: "${fieldName}" (체크박스 없음)`);
                   value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
                 } else {
                   value = data[key] || '';
@@ -2399,10 +2402,12 @@ ${order.price}`;
                               type: 'checkbox',
                               checked: accountFullFormat[field] || false,
                               onChange: (e) => {
-                                setAccountFullFormat({
+                                const newFormat = {
                                   ...accountFullFormat,
                                   [field]: e.target.checked
-                                });
+                                };
+                                setAccountFullFormat(newFormat);
+                                console.log(`💳 체크박스 변경: "${field}" = ${e.target.checked}`, newFormat);
                               },
                               style: {
                                 cursor: 'pointer'
