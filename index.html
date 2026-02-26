@@ -175,16 +175,24 @@
     // 패턴 자동 추출 함수
     const extractPattern = (fullText, targetValue, fieldType) => {
       if (!targetValue || !fullText.includes(targetValue)) {
+        console.warn(`⚠️ "${targetValue}"를 찾을 수 없습니다`);
         return '';
       }
       
       const index = fullText.indexOf(targetValue);
-      const before = fullText.substring(Math.max(0, index - 30), index);
+      const before = fullText.substring(Math.max(0, index - 50), index);  // 30 → 50으로 확대
       const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 10));
       
-      // 라벨 추출 (한글/영문 2-15자)
-      const labelMatch = before.match(/([가-힣a-zA-Z\s]{2,15})$/);
+      console.log(`패턴 추출: "${targetValue}"`);
+      console.log(`  앞 50자: "${before}"`);
+      console.log(`  뒤 10자: "${after}"`);
+      
+      // 라벨 추출: 줄바꿈 제거 후 마지막 단어
+      const beforeCleaned = before.replace(/\n/g, ' ').trim();
+      const labelMatch = beforeCleaned.match(/([가-힣a-zA-Z\s]{2,15})$/);
       const label = labelMatch ? labelMatch[1].trim() : '';
+      
+      console.log(`  라벨: "${label}"`);
       
       // 값 타입별 패턴
       let valuePattern = '';
@@ -198,8 +206,8 @@
         valuePattern = '([^\\t\\n]+)';
       }
       
-      // 구분자 감지
-      const lastChar = before.slice(-1);
+      // 구분자 감지 (줄바꿈 무시)
+      const lastChar = beforeCleaned.slice(-1);
       let separator = '';
       if (lastChar === '\t') {
         separator = '\\t';
@@ -216,7 +224,10 @@
         return label + '([가-힣]+)\\(';
       }
       
-      return label + separator + valuePattern;
+      const pattern = label + separator + valuePattern;
+      console.log(`  최종 패턴: "${pattern}"`);
+      
+      return pattern;
     };
 
     // 범용 파싱 함수
@@ -459,18 +470,21 @@
       });
 
       const addOrder = () => {
+        // 첫 번째 주문을 템플릿으로 사용
+        const template = orders.length > 0 ? orders[0] : {};
+        
         setOrders([...orders, {
           id: Date.now(),
           rawText: '',
-          site: '',
+          site: template.site || '',  // 첫 번째 주문의 사이트 복사
           orderNumber: '',
           price: '',
-          person: '',  // 빈 상태
-          personId: '',  // 빈 상태
-          card: '',
-          deliveryType: '',
-          reviewMethod: '',
-          reviewFee: '',
+          person: '',
+          personId: '',
+          card: template.card || '',
+          deliveryType: template.deliveryType || '',
+          reviewMethod: template.reviewMethod || '',
+          reviewFee: template.reviewFee || '',
           guideline: '',
           productUrl: '',
           parsed: false
