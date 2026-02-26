@@ -29,84 +29,10 @@
     const { useState, useEffect } = React;
 
     // 기본값 (admin 시트 로딩 실패 시 사용)
-    const DEFAULT_PRESETS = {
-      "이해운": {
-        name: "이해운",
-        reviewName: "이*운",
-        phone: "010-7169-7838",
-        address: "서울특별시 용산구 효창원로104다길 6",
-        coupangId: "iamandy",
-        naverId: "iamandy@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      },
-      "지영신": {
-        name: "지영신",
-        reviewName: "지*신",
-        phone: "010-2771-9985",
-        address: "충청남도 서천군 서면 부원길284번길 12",
-        coupangId: "dudtls0114",
-        naverId: "dudtls00114@gmail.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      },
-      "정동신": {
-        name: "정동신",
-        reviewName: "정*신",
-        phone: "010-9083-9985",
-        address: "경기도 고양시 일산서구 탄현로 136 116동 703호",
-        coupangId: "wjdehdtls",
-        naverId: "wjdehdtls@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      },
-      "전동열": {
-        name: "전동열",
-        reviewName: "전*열",
-        phone: "010-8019-4657",
-        address: "서울특별시 마포구 토정로 223-1",
-        coupangId: "dmi2286",
-        naverId: "iamandy11@gmail.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      },
-      "장샛별": {
-        name: "장샛별",
-        reviewName: "장*별",
-        phone: "010-2124-7160",
-        address: "서울특별시 마포구 토정로 223-1",
-        coupangId: "zzang9227",
-        naverId: "zzang9227@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      },
-      "이해림": {
-        name: "이해림",
-        reviewName: "이*림",
-        phone: "010-2017-9985",
-        address: "경기도 고양시 일산서구 탄현로 136 116동 703호",
-        coupangId: "pitosungy",
-        naverId: "pitosungy@naver.com",
-        bank: "신한은행",
-        account: "110254150254",
-        accountWithHyphen: "110254-150254"
-      }
-    };
-
-    const DEFAULT_SITES = [
-      "쿠팡", "네이버", "카카오톡쇼핑", "울림달영", "오늘의집", "옥션",
-      "GSSHOP", "SSG", "무신사", "크몽", "11번가", "롯데온", "지마켓", "직접입력"
-    ];
-
-    const DEFAULT_IDS = [
-      "iamandy", "dudtls", "wjdehdtls", "iamandy11", 
-      "별이", "haewoon1", "dmi2286", "pitosung"
-    ];
+    // Apps Script에서 로드될 때까지 빈 값
+    const DEFAULT_PRESETS = {};
+    const DEFAULT_SITES = [];
+    const DEFAULT_IDS = [];
 
     const DEFAULT_CARDS = [
       "와우", "네현", "트레블",
@@ -237,8 +163,9 @@
           });
           
         } catch (error) {
-          console.log('설정 로딩 실패 (기본값 사용):', error);
-          // 에러 메시지 표시 안 함
+          console.error('❌ 설정 로딩 실패:', error);
+          alert('❌ Apps Script에서 설정을 불러올 수 없습니다!\n\n원인:\n1. Apps Script URL이 잘못됨\n2. Apps Script를 재배포 안 함\n3. 네트워크 오류\n\n확인:\n- Apps Script 실행 기록\n- HTML의 APPS_SCRIPT_URL');
+          setConfigError('Apps Script 로딩 실패');
         }
       };
 
@@ -386,11 +313,11 @@
           orderNumber: '',
           price: '',
           person: Object.keys(PRESETS)[0],
-          personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
-          card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: '1000',
+          personId: PRESETS[Object.keys(PRESETS)[0]]?.coupangId || '',
+          card: CARDS[0] || '',
+          deliveryType: DELIVERY_TYPES[0] || '',
+          reviewMethod: REVIEW_METHODS[0] || '',
+          reviewFee: REVIEW_FEES[0] || '',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -399,10 +326,10 @@
 
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
-        transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: DELIVERY_TYPES[0],
-        reviewMethod: REVIEW_METHODS[0],
-        reviewFee: '1000',
+        transactionDate: new Date().toISOString().split('T')[0],
+        deliveryType: DELIVERY_TYPES[0] || '',
+        reviewMethod: REVIEW_METHODS[0] || '',
+        reviewFee: REVIEW_FEES[0] || '',
         guideline: ''
       });
 
