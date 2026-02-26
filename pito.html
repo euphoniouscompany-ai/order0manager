@@ -412,6 +412,31 @@
           parsed: parsed.detected
         };
         setOrders(newOrders);
+        
+        // editableData도 즉시 업데이트
+        const preset = PRESETS[matchedPerson] || {};
+        const updatedEditableData = {
+          ...editableData,
+          [index]: {
+            ...editableData[index],
+            name: parsed.receiver || preset.name || '',
+            receiver: parsed.receiver || preset.name || '',
+            phone: parsed.phone || preset.phone || '',
+            phoneNoHyphen: (parsed.phone || preset.phone || '').replace(/-/g, ''),
+            address: parsed.address || preset.address || '',
+            orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
+            personId: defaultId,
+            price: parsed.price || newOrders[index].price,
+            site: detectedSite,
+            naverId: preset.naverId || '',
+            nickname: preset.nickname || '',
+            bank: preset.bank || '',
+            account: preset.account || '',
+            accountWithHyphen: preset.accountWithHyphen || '',
+            accountHolder: preset.accountHolder || ''
+          }
+        };
+        setEditableData(updatedEditableData);
       };
 
       const updateOrder = (index, field, value) => {
@@ -2075,8 +2100,16 @@ ${order.price}`;
                         // 알 수 없는 라벨일 경우 학습 옵션 표시
                         isUnknown && React.createElement('select', {
                           onChange: (e) => {
-                            if (e.target.value) {
+                            if (e.target.value && !e.target.value.startsWith('_TEMP_')) {
                               saveLearnedMapping(field, e.target.value);
+                            } else if (e.target.value.startsWith('_TEMP_')) {
+                              // 임시 매핑 (저장 안 함)
+                              const actualKey = e.target.value.replace('_TEMP_', '');
+                              setLearnedMappings({
+                                ...learnedMappings,
+                                [field]: actualKey
+                              });
+                              console.log(`🔸 임시 매핑: "${field}" → "${actualKey}" (저장 안 됨)`);
                             }
                           },
                           style: {
@@ -2090,6 +2123,7 @@ ${order.price}`;
                           }
                         },
                           React.createElement('option', { value: '' }, '항목 선택'),
+                          React.createElement('optgroup', { label: '--- 저장 (시트에 추가) ---' }),
                           React.createElement('option', { value: 'name' }, '이름'),
                           React.createElement('option', { value: 'receiver' }, '수취인'),
                           React.createElement('option', { value: 'orderNumber' }, '주문번호'),
@@ -2107,7 +2141,10 @@ ${order.price}`;
                           React.createElement('option', { value: 'accountHolder' }, '예금주'),
                           React.createElement('option', { value: 'deliveryType' }, '배송'),
                           React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
-                          React.createElement('option', { value: 'reviewFee' }, '립비')
+                          React.createElement('option', { value: 'reviewFee' }, '립비'),
+                          React.createElement('optgroup', { label: '--- 임시 사용 (저장 안 됨) ---' }),
+                          React.createElement('option', { value: '_TEMP___BANK_ACCOUNT_HOLDER__', style: { color: '#ea580c' } }, '🔸 은행 계좌번호 예금주 (임시)'),
+                          React.createElement('option', { value: '_TEMP___BANK_ACCOUNT_HOLDER_NO_HYPHEN__', style: { color: '#ea580c' } }, '🔸 은행 계좌번호 예금주(하이픈없음) (임시)')
                         )
                       ),
                       
