@@ -1257,7 +1257,7 @@ ${order.price}`;
           const personId = order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId;
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '직접입력') : order.reviewFee;
           
-          return {
+          const dataToSend = {
             date: dateStr,
             site: site,
             talkRoom: commonSettings.talkRoomName,
@@ -1272,6 +1272,10 @@ ${order.price}`;
             orderNumber: order.orderNumber,       // 주문번호 (R열)
             productUrl: order.productUrl || ''
           };
+          
+          console.log('📤 전송 데이터:', dataToSend);
+          
+          return dataToSend;
         });
 
         if (sheetsData.length === 0) {
