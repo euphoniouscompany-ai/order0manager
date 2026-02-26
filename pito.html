@@ -492,22 +492,20 @@
         const fields = parseFormTemplate(formTemplate);
         const newEditableData = {};
         
-        selectedOrders.forEach(orderIndex => {
-          const order = orders[orderIndex];
-          if (!order) return;
-          
-          const preset = PRESETS[order.person];
+        // 모든 주문에 대해 editableData 생성
+        orders.forEach((order, orderIndex) => {
+          const preset = PRESETS[order.person] || {};
           const site = order.site === '직접입력' ? (order.customSite || '') : order.site;
           const personId = order.personId === '직접입력' ? (order.customId || '') : order.personId;
           const reviewFee = order.reviewFee === '직접입력' ? (order.customFee || '') : order.reviewFee;
           
           newEditableData[orderIndex] = {
             // 주문서 데이터 우선, 없으면 프리셋
-            name: order.parsedReceiver || preset.name,
-            receiver: order.parsedReceiver || preset.name,
-            phone: order.parsedPhone || preset.phone,
-            phoneNoHyphen: (order.parsedPhone || preset.phone).replace(/-/g, ''),
-            address: order.parsedAddress || preset.address,
+            name: order.parsedReceiver || preset.name || '',
+            receiver: order.parsedReceiver || preset.name || '',
+            phone: order.parsedPhone || preset.phone || '',
+            phoneNoHyphen: (order.parsedPhone || preset.phone || '').replace(/-/g, ''),
+            address: order.parsedAddress || preset.address || '',
             
             // 주문 정보
             orderNumber: order.orderNumber,
@@ -516,11 +514,11 @@
             site: site,
             
             // 프리셋에만 있는 정보
-            naverId: preset.naverId,
+            naverId: preset.naverId || '',
             nickname: preset.nickname || '',
-            bank: preset.bank,
-            account: preset.account,
-            accountWithHyphen: preset.accountWithHyphen,
+            bank: preset.bank || '',
+            account: preset.account || '',
+            accountWithHyphen: preset.accountWithHyphen || '',
             accountHolder: preset.accountHolder || '',
             
             // 설정
@@ -532,7 +530,7 @@
         });
         
         setEditableData(newEditableData);
-      }, [selectedOrders, formTemplate, orders]);
+      }, [orders, formTemplate]);  // orders 변경 시에만
 
       // 편집 데이터 업데이트
       const updateEditableData = (orderIndex, field, value) => {
@@ -599,15 +597,17 @@
           const result = await response.json();
           
           if (result.success) {
-            // 로컬 state에도 반영
-            setLearnedMappings({
+            // 로컬 state에 즉시 반영
+            const newMappings = {
               ...learnedMappings,
               [label]: key
-            });
-            alert(`✅ "${label}" → "${key}" 매핑이 시트에 저장되었습니다!`);
+            };
+            setLearnedMappings(newMappings);
             
-            // 페이지 새로고침하여 최신 데이터 로드
-            window.location.reload();
+            console.log(`✅ "${label}" → "${key}" 매핑이 시트에 저장되었습니다`);
+            
+            // 새로고침 없이 즉시 반영
+            // editableData는 useEffect에서 자동 업데이트됨
           } else {
             alert(`❌ 저장 실패: ${result.error}`);
           }
