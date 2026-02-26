@@ -971,8 +971,9 @@
                   const account = (data.account || data.accountWithHyphen || '').replace(/-/g, '');
                   value = `${data.bank || ''} ${account} ${data.accountHolder || ''}`.trim();
                 }
-                // 계좌번호 필드 + 체크박스 선택됨
+                // 계좌번호 필드 + 체크박스 선택됨 (fieldName으로 확인)
                 else if ((key === 'account' || key === 'accountWithHyphen') && accountFullFormat[fieldName]) {
+                  console.log(`✅ 계좌번호 전체 형식: "${fieldName}" 체크됨`);
                   const accountValue = key === 'account' 
                     ? (data.account || data.accountWithHyphen || '').replace(/-/g, '')
                     : (data.accountWithHyphen || data.account || '');
@@ -1223,6 +1224,8 @@ ${order.price}`;
           
           // 장바구니번호 우선, 없으면 주문번호
           const finalOrderNumber = order.cartNumber || order.orderNumber;
+          
+          console.log(`📦 주문 저장: 장바구니=${order.cartNumber}, 주문번호=${order.orderNumber}, 최종=${finalOrderNumber}`);
           
           return {
             date: dateStr,
