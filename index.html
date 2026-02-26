@@ -599,7 +599,7 @@
         console.log(`✅ 최종 ID: ${defaultId}`);
 
         newOrders[index] = {
-          ...newOrders[index],  // 기존 값 유지 (card, deliveryType 등)
+          ...newOrders[index],  // 기존 값 유지
           rawText: text,
           site: detectedSite,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
@@ -607,6 +607,11 @@
           price: parsed.price || newOrders[index].price,
           person: matchedPerson,
           personId: defaultId,
+          // 기본값 명시적 설정
+          card: newOrders[index].card || CARDS[0] || '',
+          deliveryType: newOrders[index].deliveryType || DELIVERY_TYPES[0] || '',
+          reviewMethod: newOrders[index].reviewMethod || REVIEW_METHODS[0] || '',
+          reviewFee: newOrders[index].reviewFee || REVIEW_FEES[0] || '',
           parsedReceiver: parsed.receiver,
           parsedPhone: parsed.phone,
           parsedAddress: parsed.address,
