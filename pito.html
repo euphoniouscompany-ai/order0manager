@@ -192,16 +192,33 @@
                     };
                   });
                   setPRESETS(newPresets);
+                  window.DEBUG_PRESETS = newPresets;
                   console.log('✅ 프리셋 로드됨:', newPresets);
+                  
+                  // 닉네임 확인 (person.nickname 필드)
+                  const nicknameCheck = Object.entries(newPresets).map(([name, data]) => ({
+                    이름: name,
+                    닉네임: data.nickname,
+                    네이버ID: data.naverId
+                  }));
+                  console.table(nicknameCheck);
+                  
+                  if (config.people.some(p => p.nickname)) {
+                    console.log('✅ Apps Script에서 nickname 필드를 읽었습니다');
+                  } else {
+                    console.warn('⚠️ Apps Script에서 nickname 필드를 읽지 못했습니다. Row 10 확인 필요');
+                  }
                 }
                 
                 if (config.sites && config.sites.length > 0) setSITES(config.sites);
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
+                  window.DEBUG_SITE_IDS = config.siteIds;
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
                 }
                 if (config.nameIdMappings) {
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
+                  window.DEBUG_NAME_ID_MAPPINGS = config.nameIdMappings;
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
                 
@@ -659,8 +676,10 @@
           '이름': 'name',
           '성명': 'name',
           '구매자': 'name',
+          '구매자명': 'name',
           '성함': 'name',
           '수취인': 'receiver',
+          '수취인명': 'receiver',
           '받는분': 'receiver',
           '받는사람': 'receiver',
           '주문번호': 'orderNumber',
@@ -671,15 +690,20 @@
           '이메일': 'naverId',
           '전화번호': 'phone',
           '연락처': 'phone',
+          '연락처(-포함)': 'phone',
           '핸드폰': 'phone',
           '주소': 'address',
           '배송지': 'address',
           '금액': 'price',
           '가격': 'price',
           '결제금액': 'price',
+          '결제 금액': 'price',
+          '구입금액': 'price',
+          '구입 금액': 'price',
           '사이트': 'site',
           '채널': 'site',
           '구매채널': 'site',
+          '구입 채널': 'site',
           '카드': 'card',
           '배송': 'deliveryType',
           '리뷰': 'reviewMethod',
@@ -689,10 +713,10 @@
           '계좌': 'accountWithHyphen',
           '계좌번호': 'accountWithHyphen',
           '은행 계좌번호': 'accountWithHyphen',
+          '은행 계좌번호(하이픈삭제 -)': 'account',
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
-          '구입 금액': 'price',
-          '구입금액': 'price'
+          '은행 예금주': 'accountHolder',
         };
         
         const result = mappings[fieldName];
