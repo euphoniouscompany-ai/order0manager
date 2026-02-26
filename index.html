@@ -577,7 +577,7 @@
         console.log(`✅ 최종 ID: ${defaultId}`);
 
         newOrders[index] = {
-          ...newOrders[index],
+          ...newOrders[index],  // 기존 값 유지 (card, deliveryType 등)
           rawText: text,
           site: detectedSite,
           orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
@@ -590,6 +590,14 @@
           parsedAddress: parsed.address,
           parsed: parsed.detected
         };
+        
+        console.log(`✅ 주문 업데이트 후:`, {
+          card: newOrders[index].card,
+          deliveryType: newOrders[index].deliveryType,
+          reviewMethod: newOrders[index].reviewMethod,
+          reviewFee: newOrders[index].reviewFee
+        });
+        
         setOrders(newOrders);
         
         // editableData도 즉시 업데이트
@@ -1218,6 +1226,13 @@ ${order.price}`;
         }
 
         const sheetsData = orders.filter(o => o.orderNumber && o.price).map(order => {
+          console.log('💾 저장할 주문:', {
+            card: order.card,
+            deliveryType: order.deliveryType,
+            reviewMethod: order.reviewMethod,
+            reviewFee: order.reviewFee
+          });
+          
           // 공통 설정에서 선택한 날짜 사용
           const selectedDate = new Date(commonSettings.transactionDate);
           const dateStr = `${selectedDate.getFullYear()}. ${selectedDate.getMonth() + 1}. ${selectedDate.getDate()}`;
@@ -1234,7 +1249,7 @@ ${order.price}`;
           const finalReviewFee = reviewFee || commonSettings.reviewFee || '';
           const finalGuideline = order.guideline || commonSettings.guideline || '';
           
-          console.log(`📦 주문 저장: 카드=${finalCard}, 배송=${finalDelivery}, 리뷰=${finalReview}, 립비=${finalReviewFee}`);
+          console.log(`📦 최종 저장: 카드=${finalCard}, 배송=${finalDelivery}, 리뷰=${finalReview}, 립비=${finalReviewFee}`);
           
           return {
             date: dateStr,
