@@ -39,8 +39,7 @@
         naverId: "iamandy@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       },
       "지영신": {
         name: "지영신",
@@ -51,8 +50,7 @@
         naverId: "dudtls00114@gmail.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       },
       "정동신": {
         name: "정동신",
@@ -63,8 +61,7 @@
         naverId: "wjdehdtls@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       },
       "전동열": {
         name: "전동열",
@@ -75,8 +72,7 @@
         naverId: "iamandy11@gmail.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       },
       "장샛별": {
         name: "장샛별",
@@ -87,8 +83,7 @@
         naverId: "zzang9227@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       },
       "이해림": {
         name: "이해림",
@@ -99,8 +94,7 @@
         naverId: "pitosungy@naver.com",
         bank: "신한은행",
         account: "110254150254",
-        accountWithHyphen: "110254-150254",
-        accountHolder: "이해운"
+        accountWithHyphen: "110254-150254"
       }
     };
 
@@ -115,11 +109,14 @@
     ];
 
     const DEFAULT_CARDS = [
-      "신한 베스트"
+      "와우", "네현", "트레블",
+      "신-쿠", "금-쿠", "신-네", "금-네",
+      "신-앱", "금-앱", "신-스", "금-스", "신-토", "금-토",
+      "카신-쿠", "카신-네", "카신-앱", "카신-카", "카신-토", "카신-스"
     ];
 
-    const DEFAULT_DELIVERY_TYPES = ["빈", "실배", "회수", "직접입력"];
-    const DEFAULT_REVIEW_METHODS = ["텍스트", "포토", "별", "구확", "직접입력"];
+    const DEFAULT_DELIVERY_TYPES = ["실배", "빈", "회수"];
+    const DEFAULT_REVIEW_METHODS = ["포토", "텍스트", "별", "구확"];
     const DEFAULT_REVIEW_FEES = ["0", "500", "1000", "1500", "직접입력"];
 
     const OrderManager = () => {
@@ -140,32 +137,19 @@
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
-        // 디버깅: window에 state 노출
-        window.DEBUG_SITE_IDS = SITE_IDS;
-        window.DEBUG_PRESETS = PRESETS;
-        window.DEBUG_NAME_ID_MAPPINGS = NAME_ID_MAPPINGS;
-        window.DEBUG_CARDS = CARDS;
-        window.DEBUG_DELIVERY_TYPES = DELIVERY_TYPES;
-        window.DEBUG_REVIEW_METHODS = REVIEW_METHODS;
-        window.DEBUG_REVIEW_FEES = REVIEW_FEES;
-        console.log('🐛 디버그 정보:', {
-          CARDS: CARDS,
-          DELIVERY_TYPES: DELIVERY_TYPES,
-          REVIEW_METHODS: REVIEW_METHODS,
-          REVIEW_FEES: REVIEW_FEES
-        });
-      }, [SITE_IDS, PRESETS, NAME_ID_MAPPINGS, CARDS, DELIVERY_TYPES, REVIEW_METHODS, REVIEW_FEES]);
-      
-      useEffect(() => {
-        // review-setting에서 즉시 로드
+        // 기본값으로 바로 시작 (Apps Script 로딩 스킵)
+        setLoading(false);
+        
+        // 백그라운드에서 로드 시도 (실패해도 무시)
         loadConfigFromSheet();
       }, []);
 
       const loadConfigFromSheet = async () => {
-        console.log('🔄 review-setting 로딩 시작...');
-        // 시트 로딩 시도
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
-        console.log('📍 Apps Script URL:', APPS_SCRIPT_URL);
+        // 일단 기본값으로 바로 시작
+        setLoading(false);
+        
+        // 백그라운드에서 시트 로딩 시도
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           setConfigError('⚠️ Apps Script URL을 설정해주세요');
@@ -179,7 +163,7 @@
           await new Promise((resolve, reject) => {
             const timeout = setTimeout(() => {
               reject(new Error('Timeout'));
-            }, 10000);
+            }, 3000);
             
             window[callbackName] = (data) => {
               clearTimeout(timeout);
@@ -192,35 +176,35 @@
                 if (config.people && config.people.length > 0) {
                   const newPresets = {};
                   config.people.forEach(person => {
-                    // nameIdMappings에서 사이트별 ID 가져오기
-                    const personIdMap = config.nameIdMappings[person.name] || {};
-                    const account = person.account || "110254150254";
-                    const accountWithHyphen = account.includes('-') ? account : account.replace(/(\d{6})(\d+)/, '$1-$2');
+                    const siteIds = config.nameIdMappings[person.name] || {};
                     
+                    // 기본 필드 설정
                     newPresets[person.name] = {
                       name: person.name,
                       reviewName: person.name.charAt(0) + '*' + person.name.charAt(person.name.length - 1),
                       phone: person.phone,
+                      phoneNoHyphen: (person.phone || '').replace(/-/g, ''),
                       address: person.address,
-                      coupangId: personIdMap['쿠팡'] || '',
-                      naverId: personIdMap['네이버'] || '',
-                      nickname: person.nickname || person.닉네임 || personIdMap['네이버'] || '',
+                      coupangId: siteIds['쿠팡'] || person.coupangId || '',
+                      naverId: siteIds['네이버'] || person.naverId || '',
                       bank: person.bank || "신한은행",
-                      account: account.replace(/-/g, ''),
-                      accountWithHyphen: accountWithHyphen,
-                      accountHolder: person.accountHolder || person.name
+                      account: (person.account || "110254150254").replace(/-/g, ''),
+                      accountWithHyphen: person.account || "110254-150254",
+                      accountHolder: person.accountHolder || "이해운"
                     };
+                    
+                    // person의 모든 추가 필드를 동적으로 복사 (nickname, 별명 등)
+                    Object.keys(person).forEach(key => {
+                      if (!newPresets[person.name][key]) {
+                        newPresets[person.name][key] = person[key];
+                      }
+                    });
                   });
                   setPRESETS(newPresets);
                   console.log('✅ 프리셋 로드됨:', newPresets);
                   console.log('✅ 닉네임 확인:', 
                     Object.keys(newPresets).map(name => 
-                      `${name}: ${newPresets[name].nickname || '없음'}`
-                    )
-                  );
-                  console.log('✅ coupangId/naverId 확인:', 
-                    Object.keys(newPresets).map(name => 
-                      `${name}: 쿠팡=${newPresets[name].coupangId}, 네이버=${newPresets[name].naverId}`
+                      name + ': ' + (newPresets[name].nickname || '없음')
                     )
                   );
                 }
@@ -229,56 +213,22 @@
                 if (config.siteIds) {
                   setSITE_IDS(config.siteIds);
                   console.log('✅ 사이트별 아이디 로드됨:', config.siteIds);
-                  // 각 사이트별 ID 목록 확인
-                  Object.keys(config.siteIds).forEach(site => {
-                    console.log(`  ${site}: [${config.siteIds[site].join(', ')}]`);
-                  });
                 }
                 if (config.nameIdMappings) {
                   setNAME_ID_MAPPINGS(config.nameIdMappings);
                   console.log('✅ 이름-아이디 매핑 로드됨:', config.nameIdMappings);
                 }
-                if (config.cards && config.cards.length > 0) {
-                  setCARDS(config.cards);
-                  console.log('✅ 카드 로드됨:', config.cards);
-                } else {
-                  console.warn('⚠️ 카드 데이터 없음!');
-                }
-                if (config.deliveryTypes && config.deliveryTypes.length > 0) {
-                  setDELIVERY_TYPES(config.deliveryTypes);
-                  console.log('✅ 배송 로드됨:', config.deliveryTypes);
-                } else {
-                  console.warn('⚠️ 배송 데이터 없음!');
-                }
-                if (config.reviewMethods && config.reviewMethods.length > 0) {
-                  setREVIEW_METHODS(config.reviewMethods);
-                  console.log('✅ 리뷰 로드됨:', config.reviewMethods);
-                } else {
-                  console.warn('⚠️ 리뷰 데이터 없음!');
-                }
+                if (config.cards && config.cards.length > 0) setCARDS(config.cards);
+                if (config.deliveryTypes && config.deliveryTypes.length > 0) setDELIVERY_TYPES(config.deliveryTypes);
+                if (config.reviewMethods && config.reviewMethods.length > 0) setREVIEW_METHODS(config.reviewMethods);
                 if (config.reviewFees && config.reviewFees.length > 0) setREVIEW_FEES(config.reviewFees.map(String));
                 
                 if (config.labelMappings && Object.keys(config.labelMappings).length > 0) {
-                  setLabelMappingsFromSheet(config.labelMappings);
-                  console.log('✅ 라벨 매핑 로드됨 (시트):', config.labelMappings);
+                  setLearnedMappings(config.labelMappings);
+                  console.log('✅ 라벨 학습 데이터 로드됨:', config.labelMappings);
                 }
                 
                 setConfigError(''); // 에러 메시지 제거
-                
-                // 공통 설정도 업데이트
-                setCommonSettings(prev => ({
-                  ...prev,
-                  deliveryType: config.deliveryTypes?.[0] || prev.deliveryType,
-                  reviewMethod: config.reviewMethods?.[0] || prev.reviewMethod,
-                  reviewFee: config.reviewFees?.[2] || prev.reviewFee
-                }));
-                console.log('✅ 공통설정 업데이트:', {
-                  deliveryType: config.deliveryTypes?.[0],
-                  reviewMethod: config.reviewMethods?.[0],
-                  reviewFee: config.reviewFees?.[2]
-                });
-                
-                setLoading(false); // 로딩 완료
                 resolve();
               } else {
                 reject(new Error(data.error || '설정을 불러올 수 없습니다'));
@@ -301,20 +251,13 @@
           });
           
         } catch (error) {
-          console.error('설정 로딩 실패:', error);
-          console.error('에러 상세:', error.message);
-          setConfigError('⚠️ review-setting 시트 로딩 실패: ' + error.message + '. 기본값을 사용합니다.');
-          setLoading(false); // 에러여도 로딩 종료
+          console.log('설정 로딩 실패 (기본값 사용):', error);
+          // 에러 메시지 표시 안 함
         }
       };
-      
-      
-
 
     // 범용 파싱 함수
     const parseOrderText = (text) => {
-      // 라벨 매핑을 시트에 저장
-
       const result = {
         site: '',
         orderNumber: '',
@@ -396,8 +339,7 @@
         /수취인[:\s]+([가-힣]{2,5})/i,
         /수령자[:\s]+([가-힣]{2,5})/i,
         /받으시는\s*분[:\s]+([가-힣]{2,5})/i,
-        /배송지명\s*([가-힣]{2,5})\(/i,      // 네이버: "배송지명 지영신(엄마집)" - 괄호 앞
-        /배송지명[:\s]+([가-힣]{2,5})/i     // 네이버: "배송지명: 지영신" - 괄호 없음
+        /배송지명[^\(]*\(([^\)]+)\)/i
       ];
 
       for (const pattern of receiverPatterns) {
@@ -424,7 +366,6 @@
       // 주소 추출
       const addressPatterns = [
         /받는주소\s*\((\d{5})\)\s*([^\n]+)/i,     // 쿠팡: "받는주소	(10248) 경기도..."
-        /주소([가-힣0-9\s\-\(\)]+)\s*\(\d{5}\)/i, // 네이버: "주소충청남도... (33600)"
         /\((\d{5})\)\s*([^\n]+)/,
         /\[(\d{5})\]\s*([^\n]+)/,
         /주소[:\s]*\(?\d{5}\)?\s*([^\n]+)/i,
@@ -459,9 +400,9 @@
           person: Object.keys(PRESETS)[0],
           personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2] || '1000',
+          deliveryType: '실배',
+          reviewMethod: '포토',
+          reviewFee: '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -471,9 +412,9 @@
       const [commonSettings, setCommonSettings] = useState({
         talkRoomName: '',
         transactionDate: new Date().toISOString().split('T')[0], // 오늘 날짜 (YYYY-MM-DD)
-        deliveryType: DELIVERY_TYPES[0],
-        reviewMethod: REVIEW_METHODS[0],
-        reviewFee: REVIEW_FEES[2] || '1000',
+        deliveryType: '실배',
+        reviewMethod: '포토',
+        reviewFee: '1000',
         guideline: ''
       });
 
@@ -487,9 +428,9 @@
           person: Object.keys(PRESETS)[orders.length % 6],
           personId: PRESETS[Object.keys(PRESETS)[orders.length % 6]].coupangId,
           card: CARDS[0],
-          deliveryType: DELIVERY_TYPES[0],
-          reviewMethod: REVIEW_METHODS[0],
-          reviewFee: REVIEW_FEES[2] || '1000',
+          deliveryType: '실배',
+          reviewMethod: '포토',
+          reviewFee: '1000',
           guideline: '',
           productUrl: '',
           parsed: false
@@ -506,24 +447,15 @@
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
         
-        // 파싱된 이름으로 프리셋 자동 매칭 (정확도 개선)
+        // 파싱된 이름으로 프리셋 자동 매칭
         let matchedPerson = newOrders[index].person;
         if (parsed.receiver) {
-          const receiver = parsed.receiver.trim();
-          
-          // 1순위: 정확히 일치
-          let foundPerson = Object.keys(PRESETS).find(name => name === receiver);
-          
-          // 2순위: 부분 일치 (3글자 이상)
-          if (!foundPerson && receiver.length >= 2) {
-            foundPerson = Object.keys(PRESETS).find(name => 
-              name.includes(receiver) || receiver.includes(name)
-            );
-          }
-          
+          // PRESETS에서 이름이 일치하는 사람 찾기
+          const foundPerson = Object.keys(PRESETS).find(name => 
+            name.includes(parsed.receiver) || parsed.receiver.includes(name)
+          );
           if (foundPerson) {
             matchedPerson = foundPerson;
-            console.log(`✓ 주문자 자동 매칭: ${receiver} → ${foundPerson}`);
           }
         }
         
@@ -534,22 +466,15 @@
         let defaultId = '';
         if (matchedPerson && NAME_ID_MAPPINGS[matchedPerson] && detectedSite) {
           defaultId = NAME_ID_MAPPINGS[matchedPerson][detectedSite] || '';
-          console.log(`🔍 ID 매칭: ${matchedPerson} + ${detectedSite} = ${defaultId}`);
         }
         // 2순위: 사이트별 아이디 첫 번째
-        if (!defaultId && detectedSite) {
+        if (!defaultId) {
           const siteIdList = SITE_IDS[detectedSite] || [];
           defaultId = siteIdList.length > 0 ? siteIdList[0] : '';
-          console.log(`🔍 사이트별 첫 ID: ${detectedSite} = ${defaultId}`);
         }
-        // 3순위: 프리셋의 해당 사이트 ID
-        if (!defaultId && matchedPerson) {
-          const preset = PRESETS[matchedPerson];
-          if (preset) {
-            if (detectedSite === '쿠팡') defaultId = preset.coupangId || '';
-            else if (detectedSite === '네이버') defaultId = preset.naverId || '';
-          }
-          console.log(`🔍 프리셋 ID: ${matchedPerson} (${detectedSite}) = ${defaultId}`);
+        // 3순위: 프리셋 쿠팡 아이디
+        if (!defaultId) {
+          defaultId = PRESETS[matchedPerson]?.coupangId || '';
         }
 
         newOrders[index] = {
@@ -571,57 +496,9 @@
       const updateOrder = (index, field, value) => {
         const newOrders = [...orders];
         newOrders[index][field] = value;
-        
         if (field === 'person') {
-          // 현재 사이트에 맞는 ID로 설정
-          const currentSite = newOrders[index].site;
-          const preset = PRESETS[value];
-          let newId = '';
-          
-          // 1순위: NAME_ID_MAPPINGS에서 찾기
-          if (NAME_ID_MAPPINGS[value] && currentSite) {
-            newId = NAME_ID_MAPPINGS[value][currentSite] || '';
-          }
-          
-          // 2순위: 프리셋의 사이트별 ID
-          if (!newId && preset) {
-            if (currentSite === '쿠팡') newId = preset.coupangId || '';
-            else if (currentSite === '네이버') newId = preset.naverId || '';
-            else newId = preset.coupangId || ''; // 기본값
-          }
-          
-          newOrders[index].personId = newId;
-          console.log(`🔄 주문자 변경: ${value} (${currentSite}) → ID: ${newId}`);
+          newOrders[index].personId = PRESETS[value].coupangId;
         }
-        
-        if (field === 'site') {
-          // 사이트 변경 시 현재 주문자에 맞는 ID로 자동 업데이트
-          const currentPerson = newOrders[index].person;
-          const preset = PRESETS[currentPerson];
-          let newId = '';
-          
-          // 1순위: NAME_ID_MAPPINGS에서 찾기
-          if (NAME_ID_MAPPINGS[currentPerson] && value) {
-            newId = NAME_ID_MAPPINGS[currentPerson][value] || '';
-          }
-          
-          // 2순위: 프리셋의 사이트별 ID
-          if (!newId && preset) {
-            if (value === '쿠팡') newId = preset.coupangId || '';
-            else if (value === '네이버') newId = preset.naverId || '';
-            else newId = preset.coupangId || ''; // 기본값
-          }
-          
-          // 3순위: 해당 사이트의 첫 번째 ID
-          if (!newId) {
-            const siteIds = SITE_IDS[value] || [];
-            newId = siteIds.length > 0 ? siteIds[0] : '';
-          }
-          
-          newOrders[index].personId = newId;
-          console.log(`🔄 사이트 변경: ${value} (${currentPerson}) → ID: ${newId}`);
-        }
-        
         setOrders(newOrders);
       };
 
@@ -663,9 +540,9 @@
             person: Object.keys(PRESETS)[0],
             personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
             card: CARDS[0],
-            deliveryType: DELIVERY_TYPES[0],
-            reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2] || '1000',
+            deliveryType: '실배',
+            reviewMethod: '포토',
+            reviewFee: '1000',
             guideline: '',
             productUrl: '',
             parsed: false
@@ -673,9 +550,9 @@
           setCommonSettings({
             talkRoomName: '',
             transactionDate: new Date().toISOString().split('T')[0],
-            deliveryType: DELIVERY_TYPES[0],
-            reviewMethod: REVIEW_METHODS[0],
-            reviewFee: REVIEW_FEES[2] || '1000',
+            deliveryType: '실배',
+            reviewMethod: '포토',
+            reviewFee: '1000',
             guideline: ''
           });
           alert('✅ 초기화되었습니다!');
@@ -772,8 +649,7 @@
         const saved = localStorage.getItem('learnedMappings');
         return saved ? JSON.parse(saved) : {};
       });
-      const [labelMappingsFromSheet, setLabelMappingsFromSheet] = useState({});
-      
+
       const mapFieldToKey = (fieldName) => {
         // 먼저 학습된 매핑 확인
         if (learnedMappings[fieldName]) {
@@ -792,6 +668,7 @@
           '번호': 'orderNumber',
           '아이디': 'personId',
           'ID': 'personId',
+          '닉네임': 'nickname',
           '이메일': 'naverId',
           '전화번호': 'phone',
           '연락처': 'phone',
@@ -815,9 +692,6 @@
           '은행 계좌번호': 'accountWithHyphen',
           '예금주': 'accountHolder',
           '예금주명': 'accountHolder',
-          '은행 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
-          '은행명 계좌번호 예금주': '__BANK_ACCOUNT_HOLDER__',
-          '계좌번호(은행 계좌번호 예금주)': '__BANK_ACCOUNT_HOLDER__',
           '구입 금액': 'price',
           '구입금액': 'price'
         };
@@ -870,20 +744,6 @@
               const values = parts.map(part => {
                 const fieldName = part.trim();
                 const key = mapFieldToKey(fieldName);
-                
-                // 복합 라벨 처리
-                if (key === '__BANK_ACCOUNT_HOLDER__') {
-                  return `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
-                }
-                if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
-                  return `${data.bank || ''} ${data.account || ''} ${data.accountHolder || ''}`.trim();
-                }
-                
-                // 닉네임 특수 처리
-                if (key === 'nickname') {
-                  return data.nickname || data.naverId || data.personId || '';
-                }
-                
                 return data[key] || '';
               });
               
@@ -899,30 +759,7 @@
               if (match) {
                 const fieldName = match[1].trim();
                 const key = mapFieldToKey(fieldName);
-                
-                // 복합 라벨 처리
-                if (key === '__BANK_ACCOUNT_HOLDER__') {
-                  const value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
-                  if (removeLabels) {
-                    return value;
-                  } else {
-                    return `${fieldName}: ${value}`;
-                  }
-                }
-                if (key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
-                  const value = `${data.bank || ''} ${data.account || ''} ${data.accountHolder || ''}`.trim();
-                  if (removeLabels) {
-                    return value;
-                  } else {
-                    return `${fieldName}: ${value}`;
-                  }
-                }
-                
-                // 닉네임 특수 처리
-                let value = data[key] || '';
-                if (key === 'nickname') {
-                  value = data.nickname || data.naverId || data.personId || '';
-                }
+                const value = data[key] || '';
                 
                 if (removeLabels) {
                   return value;
@@ -1144,7 +981,7 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyUfqM2ys4STW6f5OnBxJtlI9Q5TFoqQ9HTfO-Ejh5DDHc_T4Ar-lvvLBJqSbkRuhAT/exec';
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwgzP-H1Gih90FzF-hncsrXWf18LzFvmPA1CA3j7d8A7z_HDGuCQslJv_QKcGIJh_Cy/exec';
         
         if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
           alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
@@ -1635,17 +1472,11 @@ ${order.price}`;
                         fontSize: '0.9rem'
                       }
                     }, 
-                      // 현재 주문의 사이트에 맞는 아이디 목록 표시
+                      // 데이터 테이블의 사이트 정보로 아이디 목록 결정
                       (() => {
-                        const currentSite = order.site;
-                        const currentSiteIds = SITE_IDS[currentSite] || ['직접입력'];
-                        console.log(`📋 주문 ${index+1} ID 목록:`, {
-                          사이트: currentSite,
-                          'SITE_IDS 전체': SITE_IDS,
-                          '현재 사이트 IDs': currentSiteIds,
-                          '주문자': order.person,
-                          '현재 personId': order.personId
-                        });
+                        const selectedSite = selectedOrders.length > 0 ? editableData[selectedOrders[0]]?.site : '';
+                        const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
+                        console.log('선택된 사이트:', selectedSite, '아이디 목록:', currentSiteIds);
                         return currentSiteIds.map(id => 
                           React.createElement('option', { key: id, value: id }, id)
                         );
@@ -2350,9 +2181,6 @@ ${order.price}`;
                           React.createElement('option', { value: 'bank' }, '은행'),
                           React.createElement('option', { value: 'accountWithHyphen' }, '계좌번호'),
                           React.createElement('option', { value: 'account' }, '계좌번호(하이픈없음)'),
-                          React.createElement('option', { value: 'accountHolder' }, '예금주'),
-                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER__' }, '은행 계좌번호 예금주'),
-                          React.createElement('option', { value: '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__' }, '은행 계좌번호 예금주(하이픈없음)'),
                           React.createElement('option', { value: 'deliveryType' }, '배송'),
                           React.createElement('option', { value: 'reviewMethod' }, '리뷰'),
                           React.createElement('option', { value: 'reviewFee' }, '립비')
@@ -2371,7 +2199,7 @@ ${order.price}`;
                         // 아이디 필드는 드롭다운으로
                         if (key === 'personId') {
                           const selectedSite = editableData[orderIndex]?.site || '';
-                          const currentSiteIds = SITE_IDS[selectedSite] || ['직접입력'];
+                          const currentSiteIds = SITE_IDS[selectedSite] || IDS || ['직접입력'];
                           
                           return React.createElement('select', {
                             key: orderIndex,
@@ -2475,7 +2303,7 @@ ${order.price}`;
                   justifyContent: 'center'
                 }
               },
-React.createElement('button', {
+                React.createElement('button', {
                   onClick: saveToGoogleSheets,
                   style: {
                     background: '#10b981',
@@ -2504,34 +2332,6 @@ React.createElement('button', {
                     boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
                   }
                 }, '🗑️ 전체 초기화')
-              ),
-              
-              
-                    )
-                ),
-                
-                React.createElement('div', { style: { display: 'flex', gap: '0.75rem', marginBottom: '1rem' } },
-                  React.createElement('input', { id: 'newLabelName', type: 'text', placeholder: '라벨명 (예: 별명)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
-                  React.createElement('input', { id: 'newLabelKey', type: 'text', placeholder: '매핑키 (예: nickname)', style: { flex: 1, padding: '0.75rem', border: '2px solid #e5e7eb', borderRadius: '8px' } }),
-                  React.createElement('button', {
-                    onClick: () => {
-                      const name = document.getElementById('newLabelName').value.trim();
-                      const key = document.getElementById('newLabelKey').value.trim();
-                      if (!name || !key) { alert('라벨명과 매핑키를 모두 입력하세요'); return; }
-                      const updated = {...(Object.keys(editedLabels).length > 0 ? editedLabels : labelMappingsFromSheet), [name]: key};
-                      setEditedLabels(updated);
-                      document.getElementById('newLabelName').value = '';
-                      document.getElementById('newLabelKey').value = '';
-                      alert('✅ "' + name + '" 추가됨');
-                    },
-                    style: { padding: '0.75rem 1.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600' }
-                  }, '➕ 추가')
-                ),
-                
-                Object.keys(editedLabels).length > 0 && React.createElement('button', {
-                  onClick: saveLabelsToSheet,
-                  style: { width: '100%', padding: '1rem', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }
-                }, '💾 시트에 저장 (' + Object.keys(editedLabels).length + '개)')
               )
             )
           )
