@@ -49,11 +49,13 @@
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
       const [REVIEW_FEES, setREVIEW_FEES] = useState(DEFAULT_REVIEW_FEES);
-      const [SITE_PATTERNS, setSITE_PATTERNS] = useState({});  // 주문서 패턴
+      const [SITE_PATTERNS, setSITE_PATTERNS] = useState({});  // 주문서 패턴 (라벨 위치)
+      const [SITE_SAMPLES, setSITE_SAMPLES] = useState({});    // 주문서 샘플 (유사도 인식용)
 
       // 로딩 상태
       const [loading, setLoading] = useState(true);
       const [configError, setConfigError] = useState('');
+      const [showSiteManager, setShowSiteManager] = useState(false); // 사이트 관리 모달
 
       // review-setting 시트에서 설정 로드
       useEffect(() => {
@@ -132,6 +134,7 @@ const loadConfigFromSheet = async () => {
           
           if (config.labelMappings) setLearnedMappings(config.labelMappings);
           if (config.sitePatterns) setSITE_PATTERNS(config.sitePatterns);
+          if (config.siteSamples) setSITE_SAMPLES(config.siteSamples);
           
           setConfigError('');
           setLoading(false);
@@ -218,6 +221,30 @@ const loadConfigFromSheet = async () => {
       return pattern;
     };
 
+    // 고정텍스트 추출 (숫자/이름/주소 등 변동값 제거, 2자 이상 한글/영문 단어만)
+    const extractFixedTexts = (text) => {
+      // 숫자, 전화번호, 날짜, 금액, 주소 등 변동값 제거
+      const cleaned = text
+        .replace(/\d{3,}/g, '')          // 3자리 이상 숫자
+        .replace(/[가-힣]{1,2}(?=\s|$)/g, '') // 1-2자 한글 (이름 등)
+        .replace(/https?:\/\/\S+/g, '')  // URL
+        .replace(/[^\uAC00-\uD7A3a-zA-Z\s]/g, ' ') // 특수문자 제거
+        .replace(/\s+/g, ' ').trim();
+      // 2자 이상 단어만 추출
+      const words = cleaned.split(/\s+/).filter(w => w.length >= 2);
+      return [...new Set(words)]; // 중복 제거
+    };
+
+    // 두 고정텍스트 배열의 Jaccard 유사도 계산
+    const calcSimilarity = (arr1, arr2) => {
+      if (!arr1.length || !arr2.length) return 0;
+      const set1 = new Set(arr1);
+      const set2 = new Set(arr2);
+      const intersection = [...set1].filter(x => set2.has(x)).length;
+      const union = new Set([...set1, ...set2]).size;
+      return intersection / union;
+    };
+
     // 범용 파싱 함수
     const parseOrderText = (text) => {
       const result = {
@@ -230,21 +257,39 @@ const loadConfigFromSheet = async () => {
         detected: false
       };
 
-      // 사이트 감지
-      const siteKeywords = {
-        "쿠팡": ["쿠팡", "coupang"],
-        "네이버": ["네이버페이", "네이버파이낸셜", "네이버"],
-        "옥션": ["옥션", "auction", "eBay"],
-        "지마켓": ["지마켓", "G마켓", "gmarket"],
-        "11번가": ["11번가", "11st"],
-        "SSG": ["SSG", "신세계"],
-        "무신사": ["무신사", "musinsa"]
-      };
+      // ── 1순위: 샘플 유사도로 사이트 감지 ──
+      const inputFixed = extractFixedTexts(text);
+      let bestSite = '';
+      let bestScore = 0;
+      const THRESHOLD = 0.15; // 15% 이상이면 인식
+      Object.entries(SITE_SAMPLES).forEach(([site, sample]) => {
+        if (sample.fixedTexts && sample.fixedTexts.length > 0) {
+          const score = calcSimilarity(inputFixed, sample.fixedTexts);
+          if (score > bestScore) { bestScore = score; bestSite = site; }
+        }
+      });
+      if (bestScore >= THRESHOLD) {
+        result.site = bestSite;
+        console.log(`✅ 유사도 인식: ${bestSite} (${(bestScore*100).toFixed(1)}%)`);
+      }
 
-      for (const [site, keywords] of Object.entries(siteKeywords)) {
-        if (keywords.some(kw => text.includes(kw))) {
-          result.site = site;
-          break;
+      // ── 2순위: 키워드 fallback (샘플 없거나 유사도 미달) ──
+      if (!result.site) {
+        const siteKeywords = {
+          "쿠팡": ["쿠팡", "coupang"],
+          "네이버": ["네이버페이", "네이버파이낸셜", "네이버"],
+          "옥션": ["옥션", "auction", "eBay"],
+          "지마켓": ["지마켓", "G마켓", "gmarket"],
+          "11번가": ["11번가", "11st"],
+          "SSG": ["SSG", "신세계"],
+          "무신사": ["무신사", "musinsa"]
+        };
+        for (const [site, keywords] of Object.entries(siteKeywords)) {
+          if (keywords.some(kw => text.includes(kw))) {
+            result.site = site;
+            console.log(`✅ 키워드 인식: ${site}`);
+            break;
+          }
         }
       }
 
@@ -930,56 +975,95 @@ const loadConfigFromSheet = async () => {
         return candidates;
       };
 
+      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
+
+      // JSONP GET 호출 공통 함수
+      const jsonpCall = (params) => new Promise((resolve, reject) => {
+        const cbName = 'cb_' + Date.now();
+        const timeout = setTimeout(() => {
+          delete window[cbName];
+          reject(new Error('Timeout'));
+        }, 10000);
+        window[cbName] = (data) => {
+          clearTimeout(timeout);
+          delete window[cbName];
+          resolve(data);
+        };
+        const qs = Object.entries({...params, callback: cbName})
+          .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
+        const script = document.createElement('script');
+        script.src = APPS_SCRIPT_URL + '?' + qs;
+        script.onerror = () => { clearTimeout(timeout); reject(new Error('Script load failed')); };
+        document.body.appendChild(script);
+      });
+
       const saveSitePattern = async (site, orderNumber, price, receiver) => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
-        
-        // 패턴 추출 - 금액은 콤마 포함 원본값으로 찾아야 정확함
+        // 패턴 추출
         const orderNumberPattern = extractPattern(learningData.rawText, orderNumber, 'orderNumber');
         const pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || price, 'price');
         const receiverPattern = extractPattern(learningData.rawText, receiver, 'receiver');
-        
         console.log('추출된 패턴:', { orderNumberPattern, pricePattern, receiverPattern });
-        
+
         try {
-          const response = await fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            body: JSON.stringify({
-              sitePattern: {
-                site: site,
-                orderNumberPattern: orderNumberPattern,
-                pricePattern: pricePattern,
-                receiverPattern: receiverPattern
-              }
-            })
+          const result = await jsonpCall({
+            action: 'saveSitePattern',
+            site,
+            orderNumberPattern,
+            pricePattern,
+            receiverPattern
           });
-          
-          const result = await response.json();
-          
           if (result.success) {
-            // 로컬 state 업데이트 (새로고침 없이 즉시 반영)
-            const newPatterns = {
-              ...SITE_PATTERNS,
-              [site]: {
-                orderNumber: orderNumberPattern,
-                price: pricePattern,
-                receiver: receiverPattern
-              }
-            };
-            setSITE_PATTERNS(newPatterns);
-            
-            // 새 사이트면 SITES 목록에도 추가
-            if (!SITES.includes(site)) {
-              setSITES(prev => [...prev, site]);
-            }
-            
-            console.log(`✅ "${site}" 주문서 패턴이 시트에 저장되었습니다`);
+            setSITE_PATTERNS(prev => ({
+              ...prev,
+              [site]: { orderNumber: orderNumberPattern, price: pricePattern, receiver: receiverPattern }
+            }));
+            if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
+            console.log(`✅ "${site}" 패턴 저장 완료`);
             setShowLearningUI(false);
           } else {
             alert(`❌ 저장 실패: ${result.error}`);
           }
-        } catch (error) {
-          console.error('패턴 저장 실패:', error);
-          alert(`❌ 저장 실패: ${error.message}`);
+        } catch (err) {
+          console.error('패턴 저장 실패:', err);
+          alert(`❌ 저장 실패: ${err.message}`);
+        }
+      };
+
+      // 사이트 샘플 저장 (유사도 인식용)
+      const saveSiteSample = async (site, rawText, orderNumberLabel, priceLabel, receiverLabel, orderNumberPattern, pricePattern, receiverPattern) => {
+        const fixedTexts = extractFixedTexts(rawText);
+        try {
+          const result = await jsonpCall({
+            action: 'saveSiteSample',
+            site,
+            fixedTexts: JSON.stringify(fixedTexts),
+            orderNumberLabel,
+            priceLabel,
+            receiverLabel,
+            orderNumberPattern: orderNumberPattern || '',
+            pricePattern: pricePattern || '',
+            receiverPattern: receiverPattern || ''
+          });
+          if (result.success) {
+            setSITE_SAMPLES(prev => ({
+              ...prev,
+              [site]: { fixedTexts, orderNumberLabel, priceLabel, receiverLabel }
+            }));
+            setSITE_PATTERNS(prev => ({
+              ...prev,
+              [site]: { orderNumber: orderNumberPattern || '', price: pricePattern || '', receiver: receiverPattern || '' }
+            }));
+            if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
+            console.log(`✅ "${site}" 샘플+패턴 저장 완료`);
+            return true;
+          } else {
+            alert(`❌ 샘플 저장 실패: ${result.error}`);
+            return false;
+          }
+        } catch (err) {
+          console.error('샘플 저장 실패:', err);
+          alert(`❌ 샘플 저장 실패: ${err.message}`);
+          return false;
         }
       };
 
@@ -1448,12 +1532,16 @@ return {
               }
             }, '📦 주문 관리 시스템'),
             React.createElement('p', {
+              style: { margin: '0.5rem 0 0 0', opacity: 0.9, fontSize: '0.95rem' }
+            }, '모든 쇼핑몰 지원 | 자동 파싱 + 수동 수정'),
+            React.createElement('button', {
+              onClick: () => setShowSiteManager(true),
               style: {
-                margin: '0.5rem 0 0 0',
-                opacity: 0.9,
-                fontSize: '0.95rem'
+                marginTop: '0.75rem', padding: '0.4rem 1rem',
+                background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
+                borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem'
               }
-            }, '모든 쇼핑몰 지원 | 자동 파싱 + 수동 수정')
+            }, '🏪 사이트 관리')
           ),
 
           React.createElement('div', { style: { padding: '2rem' } },
@@ -2932,12 +3020,12 @@ return {
                   }, '이번만 적용'),
                   // 패턴 저장 + 적용
                   React.createElement('button', {
-                    onClick: () => {
+                    onClick: async () => {
                       if (!learningData.site || !learningData.orderNumber || !learningData.price || !learningData.receiver) {
                         alert('사이트, 주문번호, 금액, 수취인을 모두 입력해주세요!');
                         return;
                       }
-                      // 현재 주문에도 즉시 적용
+                      // 현재 주문에 즉시 적용
                       const idx = learningData.orderIndex;
                       if (idx !== null) {
                         const newOrders = [...orders];
@@ -2954,7 +3042,22 @@ return {
                           [idx]: { ...(prev[idx] || {}), orderNumber: learningData.orderNumber, price: learningData.price, receiver: learningData.receiver, site: learningData.site }
                         }));
                       }
-                      saveSitePattern(learningData.site, learningData.orderNumber, learningData.price, learningData.receiver);
+                      // 라벨 추출 (패턴용)
+                      const orderNumberPattern = extractPattern(learningData.rawText, learningData.orderNumber, 'orderNumber');
+                      const pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || learningData.price, 'price');
+                      const receiverPattern = extractPattern(learningData.rawText, learningData.receiver, 'receiver');
+                      // 라벨명 추출 (샘플용 - 패턴에서 앞부분만)
+                      const getLabel = (pattern) => pattern ? pattern.replace(/[\\\[\]()?+*{}|]/g, '').replace(/\\s\*/g,'').trim() : '';
+                      await saveSiteSample(
+                        learningData.site,
+                        learningData.rawText,
+                        getLabel(orderNumberPattern),
+                        getLabel(pricePattern),
+                        getLabel(receiverPattern),
+                        orderNumberPattern,
+                        pricePattern,
+                        receiverPattern
+                      );
                     },
                     style: {
                       padding: '0.75rem 1.5rem', border: 'none',
@@ -2962,6 +3065,206 @@ return {
                       color: 'white', cursor: 'pointer', fontWeight: '600', fontSize: '0.95rem'
                     }
                   }, '✅ 저장 + 적용')
+                )
+              )
+            ),
+
+            // ── 사이트 관리 모달 ──
+            showSiteManager && React.createElement('div', {
+              style: {
+                position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                background: 'rgba(0,0,0,0.7)', display: 'flex',
+                justifyContent: 'center', alignItems: 'center', zIndex: 1001
+              },
+              onClick: () => setShowSiteManager(false)
+            },
+              React.createElement('div', {
+                style: {
+                  background: 'white', padding: '2rem', borderRadius: '12px',
+                  width: '90%', maxWidth: '680px', maxHeight: '88vh', overflow: 'auto'
+                },
+                onClick: e => e.stopPropagation()
+              },
+                React.createElement('h2', {
+                  style: { marginTop: 0, marginBottom: '0.5rem', color: '#1e293b', fontSize: '1.2rem' }
+                }, '🏪 사이트 관리'),
+                React.createElement('p', {
+                  style: { color: '#64748b', marginBottom: '1.5rem', fontSize: '0.9rem' }
+                }, '등록된 사이트 샘플 목록입니다. 주문서를 붙여넣어 새 사이트를 샘플로 등록하세요.'),
+
+                // 등록된 샘플 목록
+                Object.keys(SITE_SAMPLES).length === 0
+                  ? React.createElement('p', {
+                      style: { color: '#94a3b8', fontSize: '0.9rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px' }
+                    }, '등록된 샘플이 없습니다. 아래에서 새 샘플을 등록하세요.')
+                  : React.createElement('div', { style: { marginBottom: '1.5rem' } },
+                      Object.entries(SITE_SAMPLES).map(([site, sample]) =>
+                        React.createElement('div', {
+                          key: site,
+                          style: {
+                            padding: '0.75rem 1rem', marginBottom: '0.5rem',
+                            border: '1px solid #e2e8f0', borderRadius: '8px',
+                            background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                          }
+                        },
+                          React.createElement('div', null,
+                            React.createElement('span', { style: { fontWeight: '600', color: '#1e293b' } }, site),
+                            React.createElement('span', {
+                              style: { marginLeft: '1rem', fontSize: '0.8rem', color: '#64748b' }
+                            }, `고정텍스트 ${sample.fixedTexts ? sample.fixedTexts.length : 0}개 | 주문번호: ${sample.orderNumberLabel || '-'} | 금액: ${sample.priceLabel || '-'} | 수취인: ${sample.receiverLabel || '-'}`)
+                          )
+                        )
+                      )
+                    ),
+
+                // 새 샘플 등록 섹션
+                React.createElement('div', {
+                  style: { borderTop: '1px solid #e2e8f0', paddingTop: '1.5rem' }
+                },
+                  React.createElement('h3', {
+                    style: { margin: '0 0 1rem', fontSize: '1rem', color: '#1e293b' }
+                  }, '➕ 새 사이트 샘플 등록'),
+                  React.createElement('p', {
+                    style: { fontSize: '0.85rem', color: '#64748b', marginBottom: '1rem' }
+                  }, '1) 사이트명 입력 → 2) 주문서 텍스트 붙여넣기 → 3) 주문번호/금액/수취인 입력 → 저장'),
+
+                  (() => {
+                    const [newSampleSite, setNewSampleSite] = React.useState('');
+                    const [newSampleText, setNewSampleText] = React.useState('');
+                    const [newSampleOrderNum, setNewSampleOrderNum] = React.useState('');
+                    const [newSamplePrice, setNewSamplePrice] = React.useState('');
+                    const [newSamplePriceRaw, setNewSamplePriceRaw] = React.useState('');
+                    const [newSampleReceiver, setNewSampleReceiver] = React.useState('');
+                    const [saving, setSaving] = React.useState(false);
+
+                    const inText = (val) => val && newSampleText.includes(val);
+                    const priceCands = newSampleText ? extractPriceCandidates(newSampleText) : [];
+
+                    return React.createElement('div', null,
+                      // 사이트명
+                      React.createElement('div', { style: { marginBottom: '0.75rem' } },
+                        React.createElement('label', { style: { display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.3rem' } }, '사이트명'),
+                        React.createElement('input', {
+                          type: 'text', value: newSampleSite,
+                          onChange: e => setNewSampleSite(e.target.value),
+                          placeholder: '예: 티몬, 위메프',
+                          style: { width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.95rem', boxSizing: 'border-box' }
+                        })
+                      ),
+                      // 주문서 텍스트
+                      React.createElement('div', { style: { marginBottom: '0.75rem' } },
+                        React.createElement('label', { style: { display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.3rem' } }, '주문서 텍스트'),
+                        React.createElement('textarea', {
+                          value: newSampleText,
+                          onChange: e => setNewSampleText(e.target.value),
+                          placeholder: '주문서 전체 텍스트를 붙여넣으세요',
+                          rows: 5,
+                          style: { width: '100%', padding: '0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.85rem', boxSizing: 'border-box', resize: 'vertical' }
+                        })
+                      ),
+                      // 주문번호
+                      React.createElement('div', { style: { marginBottom: '0.75rem' } },
+                        React.createElement('label', { style: { display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.3rem' } }, '주문번호'),
+                        React.createElement('input', {
+                          type: 'text', value: newSampleOrderNum,
+                          onChange: e => setNewSampleOrderNum(e.target.value),
+                          placeholder: '실제 주문번호 입력',
+                          style: {
+                            width: '100%', padding: '0.6rem', boxSizing: 'border-box',
+                            border: !newSampleOrderNum ? '1px solid #cbd5e1' : inText(newSampleOrderNum) ? '2px solid #10b981' : '2px solid #f59e0b',
+                            borderRadius: '6px', fontSize: '0.95rem'
+                          }
+                        }),
+                        newSampleOrderNum && React.createElement('p', {
+                          style: { margin: '0.2rem 0 0', fontSize: '0.75rem', color: inText(newSampleOrderNum) ? '#10b981' : '#f59e0b' }
+                        }, inText(newSampleOrderNum) ? '✅ 발견됨 — 패턴 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                      ),
+                      // 금액 후보 + 입력
+                      React.createElement('div', { style: { marginBottom: '0.75rem' } },
+                        React.createElement('label', { style: { display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.3rem' } }, '결제 금액'),
+                        priceCands.length > 0 && React.createElement('div', {
+                          style: { display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem', padding: '0.5rem', background: '#f8fafc', borderRadius: '6px', border: '1px solid #e2e8f0' }
+                        },
+                          React.createElement('span', { style: { width: '100%', fontSize: '0.75rem', color: '#64748b' } }, '📌 후보:'),
+                          priceCands.map((c, i) => React.createElement('button', {
+                            key: i,
+                            onClick: () => { setNewSamplePrice(c.value); setNewSamplePriceRaw(c.rawValue); },
+                            style: {
+                              padding: '0.2rem 0.6rem', fontSize: '0.8rem', cursor: 'pointer', borderRadius: '16px',
+                              border: newSamplePrice === c.value ? '2px solid #3b82f6' : '1px solid #cbd5e1',
+                              background: newSamplePrice === c.value ? '#eff6ff' : 'white',
+                              color: newSamplePrice === c.value ? '#1d4ed8' : '#475569'
+                            }
+                          }, `${c.label}: ${Number(c.value).toLocaleString()}원`))
+                        ),
+                        React.createElement('input', {
+                          type: 'text', value: newSamplePrice,
+                          onChange: e => { const v = e.target.value.replace(/,/g,''); setNewSamplePrice(v); setNewSamplePriceRaw(v); },
+                          placeholder: '금액 숫자만',
+                          style: {
+                            width: '100%', padding: '0.6rem', boxSizing: 'border-box',
+                            border: !newSamplePrice ? '1px solid #cbd5e1' : newSampleText.includes(newSamplePriceRaw||newSamplePrice) ? '2px solid #10b981' : '2px solid #f59e0b',
+                            borderRadius: '6px', fontSize: '0.95rem'
+                          }
+                        }),
+                        newSamplePrice && React.createElement('p', {
+                          style: { margin: '0.2rem 0 0', fontSize: '0.75rem', color: newSampleText.includes(newSamplePriceRaw||newSamplePrice) ? '#10b981' : '#f59e0b' }
+                        }, newSampleText.includes(newSamplePriceRaw||newSamplePrice) ? '✅ 발견됨 — 패턴 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                      ),
+                      // 수취인
+                      React.createElement('div', { style: { marginBottom: '1rem' } },
+                        React.createElement('label', { style: { display: 'block', fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.3rem' } }, '수취인'),
+                        React.createElement('input', {
+                          type: 'text', value: newSampleReceiver,
+                          onChange: e => setNewSampleReceiver(e.target.value),
+                          placeholder: '받는 사람 이름',
+                          style: {
+                            width: '100%', padding: '0.6rem', boxSizing: 'border-box',
+                            border: !newSampleReceiver ? '1px solid #cbd5e1' : inText(newSampleReceiver) ? '2px solid #10b981' : '2px solid #f59e0b',
+                            borderRadius: '6px', fontSize: '0.95rem'
+                          }
+                        }),
+                        newSampleReceiver && React.createElement('p', {
+                          style: { margin: '0.2rem 0 0', fontSize: '0.75rem', color: inText(newSampleReceiver) ? '#10b981' : '#f59e0b' }
+                        }, inText(newSampleReceiver) ? '✅ 발견됨 — 패턴 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                      ),
+                      // 저장 버튼
+                      React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' } },
+                        React.createElement('button', {
+                          onClick: () => setShowSiteManager(false),
+                          style: { padding: '0.65rem 1.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', background: 'white', cursor: 'pointer' }
+                        }, '닫기'),
+                        React.createElement('button', {
+                          disabled: saving || !newSampleSite || !newSampleText,
+                          onClick: async () => {
+                            if (!newSampleSite || !newSampleText) { alert('사이트명과 주문서 텍스트를 입력하세요'); return; }
+                            setSaving(true);
+                            const orderNumberPattern = extractPattern(newSampleText, newSampleOrderNum, 'orderNumber');
+                            const pricePattern = extractPattern(newSampleText, newSamplePriceRaw || newSamplePrice, 'price');
+                            const receiverPattern = extractPattern(newSampleText, newSampleReceiver, 'receiver');
+                            const getLabel = (p) => p ? p.replace(/[\\\[\]()?+*{}|]/g,'').replace(/\\s\*/g,'').trim() : '';
+                            const ok = await saveSiteSample(
+                              newSampleSite, newSampleText,
+                              getLabel(orderNumberPattern), getLabel(pricePattern), getLabel(receiverPattern),
+                              orderNumberPattern, pricePattern, receiverPattern
+                            );
+                            setSaving(false);
+                            if (ok) {
+                              setNewSampleSite(''); setNewSampleText('');
+                              setNewSampleOrderNum(''); setNewSamplePrice('');
+                              setNewSamplePriceRaw(''); setNewSampleReceiver('');
+                              alert(`✅ "${newSampleSite}" 샘플이 등록되었습니다!`);
+                            }
+                          },
+                          style: {
+                            padding: '0.65rem 1.5rem', border: 'none', borderRadius: '6px',
+                            background: saving ? '#94a3b8' : '#3b82f6', color: 'white',
+                            cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '600'
+                          }
+                        }, saving ? '저장 중...' : '✅ 샘플 저장')
+                      )
+                    );
+                  })()
                 )
               )
             )
