@@ -935,37 +935,35 @@ const loadConfigFromSheet = async () => {
 
       const resetAllOrders = () => {
         if (confirm('🗑️ 모든 주문을 삭제하고 초기화하시겠습니까?')) {
-          const freshOrder = {
+          setOrders([{
             id: Date.now(),
             rawText: '',
             site: '',
             orderNumber: '',
             cartNumber: '',
             price: '',
-            person: Object.keys(PRESETS)[0] || '',
-            personId: (PRESETS[Object.keys(PRESETS)[0]] || {}).coupangId || '',
-            card: CARDS[0] || '',
-            deliveryType: DELIVERY_TYPES[0] || '',
-            reviewMethod: REVIEW_METHODS[0] || '',
-            reviewFee: REVIEW_FEES[0] || '1000',
+            person: Object.keys(PRESETS)[0],
+            personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
+            card: CARDS[0],
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: '1000',
             guideline: '',
             talkRoomName: '',
             productUrl: '',
             parsed: false
-          };
-          setOrders([freshOrder]);
-          setEditableData({});
-          setSelectedOrders([]);
-          setFormTemplate('');
+          }]);
           setCommonSettings({
             talkRoomName: '',
-            transactionDate: new Date(new Date().getTime() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0],
-            deliveryType: DELIVERY_TYPES[0] || '',
-            reviewMethod: REVIEW_METHODS[0] || '',
-            reviewFee: REVIEW_FEES[0] || '1000',
+            transactionDate: new Date().toISOString().split('T')[0],
+            deliveryType: DELIVERY_TYPES[0],
+            reviewMethod: REVIEW_METHODS[0],
+            reviewFee: '1000',
             guideline: ''
           });
-          // alert 없이 빠르게 완료
+          setFormTemplate('');
+          setEditableData({});
+          setSelectedOrders([]);
         }
       };
 
@@ -1082,11 +1080,30 @@ const loadConfigFromSheet = async () => {
 
       // 새 라벨 매핑 저장 (Apps Script로 전송)
       const saveLearnedMapping = async (label, key) => {
+        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
+        
         try {
-          const result = await jsonpCall({ action: 'saveLabel', label, key });
+          const response = await fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+              labels: { [label]: key }
+            })
+          });
+          
+          const result = await response.json();
+          
           if (result.success) {
-            setLearnedMappings(prev => ({ ...prev, [label]: key }));
-            console.log(`✅ "${label}" → "${key}" 매핑 저장`);
+            // 로컬 state에 즉시 반영
+            const newMappings = {
+              ...learnedMappings,
+              [label]: key
+            };
+            setLearnedMappings(newMappings);
+            
+            console.log(`✅ "${label}" → "${key}" 매핑이 시트에 저장되었습니다`);
+            
+            // 새로고침 없이 즉시 반영
+            // editableData는 useEffect에서 자동 업데이트됨
           } else {
             alert(`❌ 저장 실패: ${result.error}`);
           }
@@ -1323,8 +1340,8 @@ const loadConfigFromSheet = async () => {
               const match = line.match(/^([^=:：]+)[=:：]?\s*$/);
               if (match) {
                 const fieldName = match[1].trim();
-                const lineSeparator = line.includes('=') ? ' ' : ': ';
                 const key = mapFieldToKey(fieldName);
+                const outputSep = line.includes('=') ? ' = ' : ': ';
                 
                 // 복합 라벨 처리
                 let value = '';
@@ -1354,7 +1371,7 @@ const loadConfigFromSheet = async () => {
                 if (removeLabels) {
                   return value;
                 } else {
-                  return `${fieldName}${lineSeparator}${value}`;
+                  return `${fieldName}${outputSep}${value}`;
                 }
               }
             }
@@ -2262,11 +2279,7 @@ return {
                     value: order.talkRoomName || '',
                     onChange: (e) => updateOrder(index, 'talkRoomName', e.target.value),
                     placeholder: '톡방 이름 입력',
-                    style: {
-                      width: '100%', padding: '0.5rem',
-                      border: '1px solid #cbd5e1', borderRadius: '6px',
-                      fontSize: '0.9rem', boxSizing: 'border-box'
-                    }
+                    style: { width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }
                   })
                 ),
 
