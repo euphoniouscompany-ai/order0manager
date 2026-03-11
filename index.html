@@ -499,6 +499,7 @@ const loadConfigFromSheet = async () => {
           reviewMethod: REVIEW_METHODS[0] || '',
           reviewFee: REVIEW_FEES[0] || '',
           guideline: '',
+          talkRoomName: '',
           productUrl: '',
           parsed: false
         }
@@ -547,6 +548,7 @@ const loadConfigFromSheet = async () => {
           reviewMethod: template.reviewMethod || '',
           reviewFee: template.reviewFee || '',
           guideline: '',
+          talkRoomName: template.talkRoomName || '',
           productUrl: '',
           parsed: false
         }]);
@@ -750,6 +752,7 @@ const loadConfigFromSheet = async () => {
             reviewMethod: REVIEW_METHODS[0],
             reviewFee: '1000',
             guideline: '',
+            talkRoomName: '',
             productUrl: '',
             parsed: false
           }]);
@@ -761,7 +764,9 @@ const loadConfigFromSheet = async () => {
             reviewFee: '1000',
             guideline: ''
           });
-          alert('✅ 초기화되었습니다!');
+          setFormTemplate('');
+          setEditableData({});
+          setSelectedOrders([]);
         }
       };
 
@@ -1135,7 +1140,8 @@ const loadConfigFromSheet = async () => {
             }
             // 일반 라벨 형식
             else {
-              const match = line.match(/^([^:：]+)[:\：]?\s*$/);
+              const match = line.match(/^([^=:：]+)[=:：]?\s*$/);
+                const outputSep = line.includes('=') ? ' = ' : ': ';
               if (match) {
                 const fieldName = match[1].trim();
                 const key = mapFieldToKey(fieldName);
@@ -1168,7 +1174,7 @@ const loadConfigFromSheet = async () => {
                 if (removeLabels) {
                   return value;
                 } else {
-                  return `${fieldName}: ${value}`;
+                  return `${fieldName}${outputSep}${value}`;
                 }
               }
             }
@@ -1416,7 +1422,7 @@ ${order.price}`;
 return {
     date: dateStr,
     site: order.site === '직접입력' ? (order.customSite || '직접입력') : order.site,
-    talkRoom: commonSettings.talkRoomName,
+    talkRoom: order.talkRoomName || commonSettings.talkRoomName,
     id: order.personId === '직접입력' ? (order.customId || '직접입력') : order.personId,
     price: order.price,
     // 여기서 한번 더 체크: 값이 비어있으면 현재 로드된 설정의 첫 번째 값을 보냅니다.
@@ -2064,6 +2070,20 @@ return {
                       }
                     })
                   )
+                ),
+
+                // 톡방이름
+                React.createElement('div', { style: { marginTop: '1rem' } },
+                  React.createElement('label', {
+                    style: { display: 'block', fontSize: '0.8rem', fontWeight: '500', color: '#475569', marginBottom: '0.5rem' }
+                  }, '톡방이름'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: order.talkRoomName || '',
+                    onChange: (e) => updateOrder(index, 'talkRoomName', e.target.value),
+                    placeholder: '톡방 이름 입력 (공통설정보다 우선 적용)',
+                    style: { width: '100%', padding: '0.5rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.9rem', boxSizing: 'border-box' }
+                  })
                 ),
 
                 // 가이드라인
