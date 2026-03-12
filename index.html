@@ -267,7 +267,8 @@ const loadConfigFromSheet = async () => {
         receiver: '',
         phone: '',
         address: '',
-        detected: false
+        detected: false,
+        matchType: ''  // 'known' | 'changed' | ''
       };
 
       // ── 1순위: 샘플 유사도로 사이트 감지 ──
@@ -283,28 +284,11 @@ const loadConfigFromSheet = async () => {
       });
       if (bestScore >= THRESHOLD) {
         result.site = bestSite;
+        result.matchType = 'sample'; // 나중에 패턴 추출 결과로 덮어씀
         console.log(`✅ 유사도 인식: ${bestSite} (${(bestScore*100).toFixed(1)}%)`);
       }
 
-      // ── 2순위: 키워드 fallback (샘플 없거나 유사도 미달) ──
-      if (!result.site) {
-        const siteKeywords = {
-          "쿠팡": ["쿠팡", "coupang"],
-          "네이버": ["네이버페이", "네이버파이낸셜", "네이버"],
-          "옥션": ["옥션", "auction", "eBay"],
-          "지마켓": ["지마켓", "G마켓", "gmarket"],
-          "11번가": ["11번가", "11st"],
-          "SSG": ["SSG", "신세계"],
-          "무신사": ["무신사", "musinsa"]
-        };
-        for (const [site, keywords] of Object.entries(siteKeywords)) {
-          if (keywords.some(kw => text.includes(kw))) {
-            result.site = site;
-            console.log(`✅ 키워드 인식: ${site}`);
-            break;
-          }
-        }
-      }
+      // 키워드 fallback 없음 - 패턴/샘플로만 인식
 
       // 시트에 저장된 패턴으로 파싱 시도
       if (result.site && SITE_PATTERNS[result.site]) {
@@ -364,9 +348,11 @@ const loadConfigFromSheet = async () => {
         // 패턴으로 파싱 성공하면 반환
         if (result.orderNumber && result.price) {
           result.detected = true;
+          result.matchType = 'known';
           console.log('✅ 시트 패턴으로 파싱 성공:', result);
           return result;
         }
+
       }
 
       // 기본 패턴으로 fallback
@@ -679,7 +665,8 @@ const loadConfigFromSheet = async () => {
           parsedReceiver: parsed.receiver,
           parsedPhone: parsed.phone,
           parsedAddress: parsed.address,
-          parsed: parsed.detected
+          parsed: parsed.detected,
+          matchType: parsed.matchType === 'known' ? 'known' : ''
         };
         
         console.log(`✅ 주문 업데이트 후:`, {
@@ -743,6 +730,32 @@ const loadConfigFromSheet = async () => {
           });
           setShowLearningUI(true);
         }
+      };
+
+      // 수동 수정 버튼용 - 강제로 학습 UI 열기
+      const handleLearnOrder = (index, text, forceOpen = false) => {
+        if (!text) return;
+        const parsed = parseOrderText(text);
+        const priceCandidates = extractPriceCandidates(text);
+        const orderNumberCandidates = extractOrderNumberCandidates(text);
+        const receiverCandidates = extractReceiverCandidates(text);
+        const currentOrder = orders[index];
+        setLearningData({
+          site: currentOrder.site || parsed.site || '',
+          siteIsCustom: false,
+          rawText: text,
+          orderNumber: currentOrder.orderNumber || parsed.orderNumber || '',
+          price: currentOrder.price || parsed.price || '',
+          priceCandidates,
+          orderNumberCandidates,
+          receiverCandidates,
+          receiver: currentOrder.parsedReceiver || parsed.receiver || '',
+          phone: currentOrder.parsedPhone || parsed.phone || '',
+          address: currentOrder.parsedAddress || parsed.address || '',
+          priceRawValue: '',
+          orderIndex: index
+        });
+        setShowLearningUI(true);
       };
 
       const updateOrder = (index, field, value) => {
@@ -1740,18 +1753,51 @@ return {
                   })
                 ),
 
-                // 파싱 결과
-                order.parsed && React.createElement('div', {
+                // 파싱 결과 + 신뢰도 뱃지 + 수동 수정 버튼
+                React.createElement('div', {
                   style: {
-                    background: '#f0fdf4',
-                    border: '1px solid #86efac',
-                    borderRadius: '8px',
-                    padding: '0.75rem',
-                    marginBottom: '1rem',
-                    fontSize: '0.85rem',
-                    color: '#166534'
+                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                    marginBottom: '1rem', flexWrap: 'wrap'
                   }
-                }, `✓ ${order.site || '사이트'} 감지됨 | 주문번호: ${order.orderNumber.slice(0, 10)}... | 금액: ${parseInt(order.price || 0).toLocaleString()}원`),
+                },
+                  // 신뢰도 뱃지
+                  React.createElement('span', {
+                    style: {
+                      padding: '0.35rem 0.75rem',
+                      borderRadius: '20px',
+                      fontSize: '0.8rem',
+                      fontWeight: '600',
+                      background: order.matchType === 'known' ? '#dcfce7' : '#f1f5f9',
+                      color: order.matchType === 'known' ? '#166534' : '#475569',
+                      border: `1px solid ${order.matchType === 'known' ? '#86efac' : '#cbd5e1'}`
+                    }
+                  },
+                    order.matchType === 'known'
+                      ? `✅ ${order.site} — 인식됨`
+                      : order.site
+                      ? `⚫ ${order.site} — 미인식`
+                      : '⚫ 미인식'
+                  ),
+                  // 파싱된 정보 요약
+                  order.parsed && React.createElement('span', {
+                    style: { fontSize: '0.8rem', color: '#64748b' }
+                  }, `주문번호: ${(order.orderNumber || '').slice(0, 12)}${(order.orderNumber || '').length > 12 ? '...' : ''} | 금액: ${parseInt(order.price || 0).toLocaleString()}원`),
+                  // 수동 수정 버튼
+                  order.rawText && React.createElement('button', {
+                    onClick: () => handleLearnOrder(index, order.rawText, true),
+                    style: {
+                      marginLeft: 'auto',
+                      padding: '0.3rem 0.75rem',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: '6px',
+                      background: 'white',
+                      color: '#475569',
+                      cursor: 'pointer',
+                      fontSize: '0.8rem',
+                      whiteSpace: 'nowrap'
+                    }
+                  }, '✏️ 수동 수정')
+                ),
 
                 // 수동 입력/수정 폼
                 React.createElement('div', {
