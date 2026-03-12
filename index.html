@@ -346,6 +346,21 @@ const loadConfigFromSheet = async () => {
           }
         }
         
+        if (patterns.phone) {
+          try {
+            const regex = new RegExp(patterns.phone, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) result.phone = match[1].trim();
+          } catch(e) {}
+        }
+        if (patterns.address) {
+          try {
+            const regex = new RegExp(patterns.address, 'i');
+            const match = text.match(regex);
+            if (match && match[1]) result.address = match[1].trim();
+          } catch(e) {}
+        }
+
         // 패턴으로 파싱 성공하면 반환
         if (result.orderNumber && result.price) {
           result.detected = true;
@@ -546,6 +561,8 @@ const loadConfigFromSheet = async () => {
         orderNumberCandidates: [],   // 주문번호 후보 목록 [{label, value}]
         receiverCandidates: [],      // 수취인 후보 목록 [{label, value}]
         receiver: '',
+        phone: '',
+        address: '',
         orderIndex: null             // 어느 주문 인덱스에서 띄워졌는지
       });
 
@@ -1045,7 +1062,7 @@ const loadConfigFromSheet = async () => {
       };
 
       // 사이트 샘플 저장 (유사도 인식용)
-      const saveSiteSample = async (site, rawText, orderNumberLabel, priceLabel, receiverLabel, orderNumberPattern, pricePattern, receiverPattern) => {
+      const saveSiteSample = async (site, rawText, orderNumberLabel, priceLabel, receiverLabel, orderNumberPattern, pricePattern, receiverPattern, phonePattern, addressPattern) => {
         const fixedTexts = extractFixedTexts(rawText);
         try {
           const result = await jsonpCall({
@@ -1057,7 +1074,9 @@ const loadConfigFromSheet = async () => {
             receiverLabel,
             orderNumberPattern: orderNumberPattern || '',
             pricePattern: pricePattern || '',
-            receiverPattern: receiverPattern || ''
+            receiverPattern: receiverPattern || '',
+            phonePattern: phonePattern || '',
+            addressPattern: addressPattern || ''
           });
           if (result.success) {
             setSITE_SAMPLES(prev => ({
@@ -1066,7 +1085,7 @@ const loadConfigFromSheet = async () => {
             }));
             setSITE_PATTERNS(prev => ({
               ...prev,
-              [site]: { orderNumber: orderNumberPattern || '', price: pricePattern || '', receiver: receiverPattern || '' }
+              [site]: { orderNumber: orderNumberPattern || '', price: pricePattern || '', receiver: receiverPattern || '', phone: phonePattern || '', address: addressPattern || '' }
             }));
             if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
             console.log(`✅ "${site}" 샘플+패턴 저장 완료`);
@@ -2863,45 +2882,36 @@ return {
                     style: { display: 'block', fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.9rem' }
                   }, '🏪 사이트'),
                   React.createElement('div', { style: { display: 'flex', gap: '0.5rem', alignItems: 'center' } },
-                    // 드롭다운 (SITES + "직접입력" 옵션)
-                    !learningData.siteIsCustom && React.createElement('select', {
-                      value: learningData.site,
-                      onChange: (e) => {
-                        if (e.target.value === '__custom__') {
-                          setLearningData({...learningData, site: '', siteIsCustom: true});
-                        } else {
-                          setLearningData({...learningData, site: e.target.value, siteIsCustom: false});
-                        }
-                      },
-                      style: {
-                        flex: 1, padding: '0.65rem', border: '2px solid #3b82f6',
-                        borderRadius: '6px', fontSize: '1rem', background: 'white'
-                      }
-                    },
-                      React.createElement('option', { value: '' }, '-- 사이트 선택 --'),
-                      SITES.map(s => React.createElement('option', { key: s, value: s }, s)),
-                    ),
-                    // 직접입력 텍스트필드
-                    learningData.siteIsCustom && React.createElement('input', {
-                      type: 'text',
-                      value: learningData.site,
-                      onChange: (e) => setLearningData({...learningData, site: e.target.value}),
-                      placeholder: '새 사이트 이름 입력 (예: 티몬)',
-                      autoFocus: true,
-                      style: {
-                        flex: 1, padding: '0.65rem', border: '2px solid #f59e0b',
-                        borderRadius: '6px', fontSize: '1rem'
-                      }
-                    }),
-                    // 토글 버튼
-                    React.createElement('button', {
-                      onClick: () => setLearningData({...learningData, site: '', siteIsCustom: !learningData.siteIsCustom}),
-                      style: {
-                        padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1',
-                        borderRadius: '6px', background: '#f8fafc', cursor: 'pointer',
-                        fontSize: '0.8rem', whiteSpace: 'nowrap', color: '#475569'
-                      }
-                    }, learningData.siteIsCustom ? '← 목록에서' : '직접입력')
+                    !learningData.siteIsCustom
+                      ? React.createElement('select', {
+                          value: learningData.site,
+                          onChange: (e) => {
+                            if (e.target.value === '__custom__') {
+                              setLearningData({...learningData, site: '', siteIsCustom: true});
+                            } else {
+                              setLearningData({...learningData, site: e.target.value, siteIsCustom: false});
+                            }
+                          },
+                          style: { flex: 1, padding: '0.65rem', border: '2px solid #3b82f6', borderRadius: '6px', fontSize: '1rem', background: 'white' }
+                        },
+                          React.createElement('option', { value: '' }, '-- 사이트 선택 --'),
+                          SITES.map(s => React.createElement('option', { key: s, value: s }, s)),
+                          React.createElement('option', { value: '__custom__' }, '✏️ 직접 입력...')
+                        )
+                      : React.createElement('div', { style: { display: 'flex', gap: '0.5rem', flex: 1 } },
+                          React.createElement('input', {
+                            type: 'text',
+                            value: learningData.site,
+                            onChange: (e) => setLearningData({...learningData, site: e.target.value}),
+                            placeholder: '새 사이트 이름 입력 (예: 티몬)',
+                            autoFocus: true,
+                            style: { flex: 1, padding: '0.65rem', border: '2px solid #f59e0b', borderRadius: '6px', fontSize: '1rem' }
+                          }),
+                          React.createElement('button', {
+                            onClick: () => setLearningData({...learningData, site: '', siteIsCustom: false}),
+                            style: { padding: '0.65rem 0.8rem', border: '1px solid #cbd5e1', borderRadius: '6px', background: '#f8fafc', cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap' }
+                          }, '← 목록에서')
+                        )
                   )
                 ),
 
@@ -3012,6 +3022,50 @@ return {
                   )
                 ),
 
+                // ── 전화번호 ──
+                React.createElement('div', { style: { marginBottom: '1rem' } },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.9rem' }
+                  }, '📞 전화번호'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.phone,
+                    onChange: (e) => setLearningData({...learningData, phone: e.target.value}),
+                    placeholder: '010-0000-0000',
+                    style: {
+                      width: '100%', padding: '0.65rem',
+                      border: !learningData.phone ? '1px solid #cbd5e1'
+                        : learningData.rawText.includes(learningData.phone) ? '2px solid #10b981' : '2px solid #f59e0b',
+                      borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box'
+                    }
+                  }),
+                  learningData.phone && React.createElement('p', {
+                    style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: learningData.rawText.includes(learningData.phone) ? '#10b981' : '#f59e0b' }
+                  }, learningData.rawText.includes(learningData.phone) ? '✅ 발견됨 — 패턴으로 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                ),
+
+                // ── 주소 ──
+                React.createElement('div', { style: { marginBottom: '1.5rem' } },
+                  React.createElement('label', {
+                    style: { display: 'block', fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.9rem' }
+                  }, '📍 주소'),
+                  React.createElement('input', {
+                    type: 'text',
+                    value: learningData.address,
+                    onChange: (e) => setLearningData({...learningData, address: e.target.value}),
+                    placeholder: '배송지 주소 입력',
+                    style: {
+                      width: '100%', padding: '0.65rem',
+                      border: !learningData.address ? '1px solid #cbd5e1'
+                        : learningData.rawText.includes(learningData.address) ? '2px solid #10b981' : '2px solid #f59e0b',
+                      borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box'
+                    }
+                  }),
+                  learningData.address && React.createElement('p', {
+                    style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: learningData.rawText.includes(learningData.address) ? '#10b981' : '#f59e0b' }
+                  }, learningData.rawText.includes(learningData.address) ? '✅ 발견됨 — 패턴으로 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                ),
+
                 // ── 버튼 ──
                 React.createElement('div', { style: { display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' } },
                   React.createElement('button', {
@@ -3083,7 +3137,9 @@ return {
                       const receiverPattern = extractPattern(learningData.rawText, learningData.receiver, 'receiver');
                       // 라벨명 추출 (샘플용 - 패턴에서 앞부분만)
                       const getLabel = (pattern) => pattern ? pattern.replace(/[\\\[\]()?+*{}|]/g, '').replace(/\\s\*/g,'').trim() : '';
-                      await saveSiteSample(
+                      const phonePattern = extractPattern(learningData.rawText, learningData.phone, 'phone');
+                      const addressPattern = extractPattern(learningData.rawText, learningData.address, 'address');
+                      const ok = await saveSiteSample(
                         learningData.site,
                         learningData.rawText,
                         getLabel(orderNumberPattern),
@@ -3091,8 +3147,11 @@ return {
                         getLabel(receiverPattern),
                         orderNumberPattern,
                         pricePattern,
-                        receiverPattern
+                        receiverPattern,
+                        phonePattern,
+                        addressPattern
                       );
+                      if (ok) setShowLearningUI(false);
                     },
                     style: {
                       padding: '0.75rem 1.5rem', border: 'none',
