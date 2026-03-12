@@ -204,6 +204,12 @@ const loadConfigFromSheet = async () => {
       } else if (fieldType === 'price') {
         valuePattern = '([\\d,]+)';
       } else if (fieldType === 'receiver') {
+        // 수취인: 라벨이 문장형(조사/마침표로 끝)이면 라벨 없이 이름 패턴만 반환
+        const isBadLabel = !label || label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
+        if (isBadLabel) {
+          console.log('  수취인 라벨 부적합 → 라벨 없이 저장');
+          return '([가-힣]{2,5})';
+        }
         valuePattern = '([가-힣]{2,5})';
       } else {
         valuePattern = '([^\\t\\n]+)';
@@ -433,6 +439,18 @@ const loadConfigFromSheet = async () => {
         if (match && match[1]) {
           result.receiver = match[1].trim();
           break;
+        }
+      }
+
+      // 수취인 패턴 실패 시 PRESETS 이름으로 직접 검색
+      if (!result.receiver) {
+        const presetNames = Object.keys(PRESETS);
+        for (const name of presetNames) {
+          if (text.includes(name)) {
+            result.receiver = name;
+            console.log(`✅ PRESETS 이름으로 수취인 인식: "${name}"`);
+            break;
+          }
         }
       }
 
@@ -1061,6 +1079,23 @@ const loadConfigFromSheet = async () => {
           console.error('샘플 저장 실패:', err);
           alert(`❌ 샘플 저장 실패: ${err.message}`);
           return false;
+        }
+      };
+
+      // 사이트 샘플 삭제
+      const deleteSiteSample = async (site) => {
+        if (!confirm(`"${site}" 샘플을 삭제하시겠습니까?`)) return;
+        try {
+          const result = await jsonpCall({ action: 'deleteSiteSample', site });
+          if (result.success) {
+            setSITE_SAMPLES(prev => { const n = {...prev}; delete n[site]; return n; });
+            setSITE_PATTERNS(prev => { const n = {...prev}; delete n[site]; return n; });
+            console.log(`✅ "${site}" 샘플 삭제 완료`);
+          } else {
+            alert(`❌ 삭제 실패: ${result.error}`);
+          }
+        } catch (err) {
+          alert(`❌ 삭제 실패: ${err.message}`);
         }
       };
 
@@ -2845,7 +2880,6 @@ return {
                     },
                       React.createElement('option', { value: '' }, '-- 사이트 선택 --'),
                       SITES.map(s => React.createElement('option', { key: s, value: s }, s)),
-                      React.createElement('option', { value: '__custom__' }, '✏️ 직접 입력...')
                     ),
                     // 직접입력 텍스트필드
                     learningData.siteIsCustom && React.createElement('input', {
@@ -3022,8 +3056,8 @@ return {
                   // 패턴 저장 + 적용
                   React.createElement('button', {
                     onClick: async () => {
-                      if (!learningData.site || !learningData.orderNumber || !learningData.price || !learningData.receiver) {
-                        alert('사이트, 주문번호, 금액, 수취인을 모두 입력해주세요!');
+                      if (!learningData.site || !learningData.orderNumber || !learningData.price) {
+                        alert('사이트, 주문번호, 금액을 입력해주세요!');
                         return;
                       }
                       // 현재 주문에 즉시 적용
@@ -3113,7 +3147,15 @@ return {
                             React.createElement('span', {
                               style: { marginLeft: '1rem', fontSize: '0.8rem', color: '#64748b' }
                             }, `고정텍스트 ${sample.fixedTexts ? sample.fixedTexts.length : 0}개 | 주문번호: ${sample.orderNumberLabel || '-'} | 금액: ${sample.priceLabel || '-'} | 수취인: ${sample.receiverLabel || '-'}`)
-                          )
+                          ),
+                          React.createElement('button', {
+                            onClick: () => deleteSiteSample(site),
+                            style: {
+                              padding: '0.3rem 0.6rem', border: '1px solid #fca5a5',
+                              borderRadius: '6px', background: '#fef2f2', color: '#dc2626',
+                              cursor: 'pointer', fontSize: '0.8rem', whiteSpace: 'nowrap'
+                            }
+                          }, '🗑️ 삭제')
                         )
                       )
                     ),
