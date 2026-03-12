@@ -49,8 +49,7 @@
       const [DELIVERY_TYPES, setDELIVERY_TYPES] = useState(DEFAULT_DELIVERY_TYPES);
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
       const [REVIEW_FEES, setREVIEW_FEES] = useState(DEFAULT_REVIEW_FEES);
-      const [SITE_PATTERNS, setSITE_PATTERNS] = useState({});  // 주문서 패턴 (라벨 위치)
-      const [SITE_SAMPLES, setSITE_SAMPLES] = useState({});    // 주문서 샘플 (유사도 인식용)
+      const [SITE_DATA, setSITE_DATA] = useState({});  // 주문서 학습 데이터 (패턴+샘플 통합)
 
       // 로딩 상태
       const [loading, setLoading] = useState(true);
@@ -140,8 +139,7 @@ const loadConfigFromSheet = async () => {
           })));
           
           if (config.labelMappings) setLearnedMappings(config.labelMappings);
-          if (config.sitePatterns) setSITE_PATTERNS(config.sitePatterns);
-          if (config.siteSamples) setSITE_SAMPLES(config.siteSamples);
+          if (config.siteData) setSITE_DATA(config.siteData);
           
           setConfigError('');
           setLoading(false);
@@ -172,25 +170,37 @@ const loadConfigFromSheet = async () => {
 
     // 패턴 자동 추출 함수
     const extractPattern = (fullText, targetValue, fieldType) => {
-      if (!targetValue || !fullText.includes(targetValue)) {
+      if (!targetValue) return '';
+
+      // 전화번호: 숫자만 추출해서 검색
+      let searchValue = targetValue;
+      if (fieldType === 'phone') {
+        const digits = targetValue.replace(/[^\d]/g, '');
+        if (digits.length >= 10) {
+          // 숫자만으로 패턴 생성 (하이픈/공백 무시)
+          const digitPattern = digits.split('').join('[\\s\\-]?');
+          return `(${digitPattern})`;
+        }
+      }
+
+      if (!fullText.includes(searchValue)) {
         console.warn(`⚠️ "${targetValue}"를 찾을 수 없습니다`);
         return '';
       }
       
-      const index = fullText.indexOf(targetValue);
+      const index = fullText.indexOf(searchValue);
       
-      // 바로 앞 20자만 (광고 문구 제외)
-      const before = fullText.substring(Math.max(0, index - 20), index);
-      const after = fullText.substring(index + targetValue.length, Math.min(fullText.length, index + targetValue.length + 5));
+      // 줄바꿈 기준으로 해당 줄에서 앞 텍스트만 사용
+      const lineStart = fullText.lastIndexOf('\n', index) + 1;
+      const before = fullText.substring(lineStart, index);
       
       console.log(`패턴 추출: "${targetValue}"`);
-      console.log(`  앞 20자: "${before}"`);
-      console.log(`  뒤 5자: "${after}"`);
+      console.log(`  줄 앞: "${before}"`);
       
       // 줄바꿈, 탭, 여러 공백 제거
       const beforeCleaned = before.replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
       
-      // 마지막 단어만 추출 (2-8자)
+      // 마지막 단어만 추출
       const words = beforeCleaned.split(' ');
       const label = words[words.length - 1] || '';
       
@@ -200,17 +210,19 @@ const loadConfigFromSheet = async () => {
       // 값 타입별 패턴
       let valuePattern = '';
       if (fieldType === 'orderNumber') {
-        valuePattern = '([\\d-]+)';
+        valuePattern = '([\\w\\d\\-]+)';
       } else if (fieldType === 'price') {
         valuePattern = '([\\d,]+)';
       } else if (fieldType === 'receiver') {
-        // 수취인: 라벨이 문장형(조사/마침표로 끝)이면 라벨 없이 이름 패턴만 반환
+        // 수취인: 라벨이 문장형이면 저장 안 함
         const isBadLabel = !label || label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
         if (isBadLabel) {
-          console.log('  수취인 라벨 부적합 → 라벨 없이 저장');
-          return '([가-힣]{2,5})';
+          console.log('  수취인 라벨 부적합 → 패턴 저장 안 함');
+          return '';
         }
         valuePattern = '([가-힣]{2,5})';
+      } else if (fieldType === 'address') {
+        valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
       } else {
         valuePattern = '([^\\t\\n]+)';
       }
@@ -222,7 +234,6 @@ const loadConfigFromSheet = async () => {
       if (lastChar === ':' || lastChar === '：') {
         separator = '[:\\：]\\s*';
       } else if (label && /[가-힣a-zA-Z]/.test(lastChar)) {
-        // 라벨 바로 뒤에 값
         separator = '\\s*';
       } else {
         separator = '\\s*';
@@ -276,9 +287,9 @@ const loadConfigFromSheet = async () => {
       let bestSite = '';
       let bestScore = 0;
       const THRESHOLD = 0.15; // 15% 이상이면 인식
-      Object.entries(SITE_SAMPLES).forEach(([site, sample]) => {
-        if (sample.fixedTexts && sample.fixedTexts.length > 0) {
-          const score = calcSimilarity(inputFixed, sample.fixedTexts);
+      Object.entries(SITE_DATA).forEach(([site, data]) => {
+        if (data.fixedTexts && data.fixedTexts.length > 0) {
+          const score = calcSimilarity(inputFixed, data.fixedTexts);
           if (score > bestScore) { bestScore = score; bestSite = site; }
         }
       });
@@ -291,8 +302,8 @@ const loadConfigFromSheet = async () => {
       // 키워드 fallback 없음 - 패턴/샘플로만 인식
 
       // 시트에 저장된 패턴으로 파싱 시도
-      if (result.site && SITE_PATTERNS[result.site]) {
-        const patterns = SITE_PATTERNS[result.site];
+      if (result.site && SITE_DATA[result.site]) {
+        const patterns = SITE_DATA[result.site];
         
         if (patterns.orderNumber) {
           try {
@@ -708,7 +719,7 @@ const loadConfigFromSheet = async () => {
         
         // 모달 트리거 조건
         const siteUnknown = !parsed.site || !SITES.includes(parsed.site);
-        const hasPattern = parsed.site && SITE_PATTERNS[parsed.site];
+        const hasPattern = parsed.site && SITE_DATA[parsed.site];
         // 사이트 인식됐고 패턴도 저장돼 있으면 → 파싱 불완전해도 모달 안 띄움 (패턴이 있다는 건 이미 한번 학습한 것)
         const needsLearning = siteUnknown || (!hasPattern && (!parsed.orderNumber || !parsed.price || !parsed.receiver));
         if (needsLearning) {
@@ -1116,13 +1127,17 @@ const loadConfigFromSheet = async () => {
             addressPattern: addressPattern || ''
           });
           if (result.success) {
-            setSITE_SAMPLES(prev => ({
+            setSITE_DATA(prev => ({
               ...prev,
-              [site]: { fixedTexts, orderNumberLabel, priceLabel, receiverLabel }
-            }));
-            setSITE_PATTERNS(prev => ({
-              ...prev,
-              [site]: { orderNumber: orderNumberPattern || '', price: pricePattern || '', receiver: receiverPattern || '', phone: phonePattern || '', address: addressPattern || '' }
+              [site]: {
+                fixedTexts,
+                orderNumberLabel, priceLabel, receiverLabel,
+                orderNumber: orderNumberPattern || '',
+                price: pricePattern || '',
+                receiver: receiverPattern || '',
+                phone: phonePattern || '',
+                address: addressPattern || ''
+              }
             }));
             if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
             console.log(`✅ "${site}" 샘플+패턴 저장 완료`);
@@ -1144,8 +1159,7 @@ const loadConfigFromSheet = async () => {
         try {
           const result = await jsonpCall({ action: 'deleteSiteSample', site });
           if (result.success) {
-            setSITE_SAMPLES(prev => { const n = {...prev}; delete n[site]; return n; });
-            setSITE_PATTERNS(prev => { const n = {...prev}; delete n[site]; return n; });
+            setSITE_DATA(prev => { const n = {...prev}; delete n[site]; return n; });
             console.log(`✅ "${site}" 샘플 삭제 완료`);
           } else {
             alert(`❌ 삭제 실패: ${result.error}`);
@@ -3103,13 +3117,23 @@ return {
                       borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box'
                     }
                   }),
-                  learningData.receiver && (
-                    learningData.rawText.includes(learningData.receiver)
-                      ? React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#10b981' } },
-                          '✅ 주문서에서 발견됨 — 패턴으로 저장됩니다')
-                      : React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f59e0b' } },
-                          '⚠️ 주문서에서 찾을 수 없어요. 이번만 적용됩니다')
-                  )
+                  learningData.receiver && (() => {
+                    const found = learningData.rawText.includes(learningData.receiver);
+                    if (!found) return React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f59e0b' } },
+                      '⚠️ 주문서에서 찾을 수 없어요. 이번만 적용됩니다');
+                    // 라벨 품질 검사
+                    const idx = learningData.rawText.indexOf(learningData.receiver);
+                    const lineStart = learningData.rawText.lastIndexOf('\n', idx) + 1;
+                    const before = learningData.rawText.substring(lineStart, idx).replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
+                    const words = before.split(' ');
+                    const label = words[words.length - 1] || '';
+                    const isBadLabel = !label || label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
+                    return isBadLabel
+                      ? React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f59e0b' } },
+                          '⚠️ 이름 앞 라벨을 인식 못했어요 — 수취인 패턴은 저장되지 않습니다 (이번만 적용)')
+                      : React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#10b981' } },
+                          `✅ 주문서에서 발견됨 (앞 라벨: "${label}") — 패턴으로 저장됩니다`);
+                  })()
                 ),
 
                 // ── 전화번호 ──
@@ -3277,12 +3301,12 @@ return {
                 }, '등록된 사이트 샘플 목록입니다. 주문서를 붙여넣어 새 사이트를 샘플로 등록하세요.'),
 
                 // 등록된 샘플 목록
-                Object.keys(SITE_SAMPLES).length === 0
+                Object.keys(SITE_DATA).length === 0
                   ? React.createElement('p', {
                       style: { color: '#94a3b8', fontSize: '0.9rem', padding: '1rem', background: '#f8fafc', borderRadius: '8px' }
-                    }, '등록된 샘플이 없습니다. 아래에서 새 샘플을 등록하세요.')
+                    }, '등록된 학습 데이터가 없습니다. 아래에서 새 사이트를 등록하세요.')
                   : React.createElement('div', { style: { marginBottom: '1.5rem' } },
-                      Object.entries(SITE_SAMPLES).map(([site, sample]) =>
+                      Object.entries(SITE_DATA).map(([site, sample]) =>
                         React.createElement('div', {
                           key: site,
                           style: {
