@@ -839,9 +839,33 @@ const loadConfigFromSheet = async () => {
             // 주문서 데이터 우선, 없으면 프리셋
             name: order.parsedReceiver || preset.name || '',
             receiver: order.parsedReceiver || preset.name || '',
-            phone: order.parsedPhone || preset.phone || '',
+            phone: (() => {
+              if (order.parsedPhone && preset.phone) {
+                const parsed = order.parsedPhone.replace(/[^\d]/g, '');
+                const full = preset.phone.replace(/[^\d]/g, '');
+                if (parsed === full || full.includes(parsed) || parsed.includes(full)) {
+                  return preset.phone; // 프리셋 풀 전화번호 반환
+                }
+              }
+              return order.parsedPhone || preset.phone || '';
+            })(),
             phoneNoHyphen: (order.parsedPhone || preset.phone || '').replace(/-/g, ''),
-            address: order.parsedAddress || preset.address || '',
+            address: (() => {
+              // 파싱된 주소와 프리셋 주소 부분 일치 검사 → 일치하면 프리셋 풀주소 사용
+              if (order.parsedAddress && preset.address) {
+                // 주소 토큰 유사도 비교 (공백/하이픈/쉼표/괄호 제거 후 단어 단위)
+                const tokenize = (s) => s.replace(/[()（）,·]/g, ' ').split(/\s+/).filter(t => t.length > 0);
+                const parsedTokens = tokenize(order.parsedAddress);
+                const fullTokens = tokenize(preset.address);
+                // 파싱된 토큰 중 프리셋에 포함된 것 비율
+                const matched = parsedTokens.filter(t => fullTokens.some(f => f.includes(t) || t.includes(f))).length;
+                const score = matched / Math.max(parsedTokens.length, 1);
+                if (score >= 0.5) { // 50% 이상 토큰 일치하면 프리셋 풀주소 사용
+                  return preset.address;
+                }
+              }
+              return order.parsedAddress || preset.address || '';
+            })(),
             
             // 주문 정보
             orderNumber: order.orderNumber,
