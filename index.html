@@ -2708,6 +2708,27 @@ return {
                           );
                         }
                         
+                        // __BANK_ACCOUNT_HOLDER__ 특수 키 처리
+                        if (key === '__BANK_ACCOUNT_HOLDER__' || key === '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__') {
+                          const d = editableData[orderIndex] || {};
+                          const acc = key === '__BANK_ACCOUNT_HOLDER__'
+                            ? (d.accountWithHyphen || d.account || '')
+                            : (d.account || '').replace(/-/g, '');
+                          const combined = `${d.bank || ''} ${acc} ${d.accountHolder || ''}`.trim();
+                          return React.createElement('input', {
+                            key: orderIndex,
+                            type: 'text',
+                            value: combined,
+                            readOnly: true,
+                            placeholder: `주문${orderIndex + 1}`,
+                            style: {
+                              flex: '1 1 200px', padding: '0.5rem',
+                              border: '1px solid #cbd5e1', borderRadius: '6px',
+                              fontSize: '0.85rem', background: '#f8fafc', color: '#475569'
+                            }
+                          });
+                        }
+
                         // 계좌번호 필드는 드롭다운으로 (계좌만 / 전체 선택)
                         if (key === 'account' || key === 'accountWithHyphen') {
                           const order = orders[orderIndex];
