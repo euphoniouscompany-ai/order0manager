@@ -264,10 +264,8 @@
 
     const SharedSitesTab = ({ sharedConfig, sharedJsonpCall, loadSharedConfig }) => {
       const sites = sharedConfig?.sharedSites || [];
-      const DEFAULT_SITES_LIST = ['쿠팡','네이버','카카오톡쇼핑','올림달영','오늘의집','옥션','GSSHOP','SSG','무신사','크몽','11번가','롯데온','지마켓'];
       const [newSite, setNewSite] = React.useState('');
       const [saving, setSaving] = React.useState(false);
-      const [bulkSaving, setBulkSaving] = React.useState(false);
 
       const save = async () => {
         if (!newSite.trim()) return;
@@ -286,18 +284,6 @@
         await loadSharedConfig();
       };
 
-      const saveAll = async () => {
-        if (!confirm('기본 사이트 목록 전체를 저장할까요?')) return;
-        setBulkSaving(true);
-        try {
-          const merged = [...new Set([...sites, ...DEFAULT_SITES_LIST])];
-          await sharedJsonpCall('saveSharedSites', { sites: merged.join(',') });
-          await loadSharedConfig();
-        } catch(e) {
-          alert('저장 실패: ' + e.message);
-        }
-        setBulkSaving(false);
-      };
 
       return React.createElement('div', null,
         // 현재 목록
@@ -315,11 +301,7 @@
                 }, '✕')
               ))
             ),
-        // 한번에 저장 버튼
-        sites.length === 0 && React.createElement('button', {
-          onClick: saveAll, disabled: bulkSaving,
-          style: { width: '100%', padding: '0.6rem', marginBottom: '1rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }
-        }, bulkSaving ? '저장 중...' : '✅ 기본 사이트 목록 한번에 저장'),
+
         // 개별 추가
         React.createElement('div', { style: { display: 'flex', gap: '0.5rem' } },
           React.createElement('input', {
