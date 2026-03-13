@@ -138,18 +138,24 @@
           const receiverPattern = extractPattern(newSampleText, newSampleReceiver, 'receiver');
           const getLabel = (p) => p ? p.replace(/[\[\]()?+*{}|\\]/g, '').replace(/\s\*/g,'').trim() : '';
 
-          const result = await sharedJsonpCall('saveSharedSiteSample', {
-            site: newSampleSite.trim(),
-            fixedTexts: JSON.stringify(fixedTexts),
-            orderNumberLabel: getLabel(orderNumberPattern),
-            priceLabel: getLabel(pricePattern),
-            receiverLabel: getLabel(receiverPattern),
-            orderNumberPattern: orderNumberPattern || '',
-            pricePattern: pricePattern || '',
-            receiverPattern: receiverPattern || '',
-            phonePattern: '',
-            addressPattern: ''
+          const resp = await fetch(SHARED_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'saveSharedSiteSample',
+              site: newSampleSite.trim(),
+              fixedTexts: JSON.stringify(fixedTexts),
+              orderNumberLabel: getLabel(orderNumberPattern),
+              priceLabel: getLabel(pricePattern),
+              receiverLabel: getLabel(receiverPattern),
+              orderNumberPattern: orderNumberPattern || '',
+              pricePattern: pricePattern || '',
+              receiverPattern: receiverPattern || '',
+              phonePattern: '',
+              addressPattern: ''
+            })
           });
+          const result = await resp.json();
           if (result.success) {
             setSITE_DATA(prev => ({
               ...prev,
@@ -1662,18 +1668,25 @@ const loadConfigFromSheet = async (overrideUrl) => {
       const saveSiteSample = async (site, rawText, orderNumberLabel, priceLabel, receiverLabel, orderNumberPattern, pricePattern, receiverPattern, phonePattern, addressPattern) => {
         const fixedTexts = extractFixedTexts(rawText);
         try {
-          const result = await sharedJsonpCall('saveSharedSiteSample', {
-            site,
-            fixedTexts: JSON.stringify(fixedTexts),
-            orderNumberLabel,
-            priceLabel,
-            receiverLabel,
-            orderNumberPattern: orderNumberPattern || '',
-            pricePattern: pricePattern || '',
-            receiverPattern: receiverPattern || '',
-            phonePattern: phonePattern || '',
-            addressPattern: addressPattern || ''
+          // fixedTexts가 너무 길어 JSONP URL 제한 초과 → POST 사용
+          const resp = await fetch(SHARED_SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'saveSharedSiteSample',
+              site,
+              fixedTexts: JSON.stringify(fixedTexts),
+              orderNumberLabel,
+              priceLabel,
+              receiverLabel,
+              orderNumberPattern: orderNumberPattern || '',
+              pricePattern: pricePattern || '',
+              receiverPattern: receiverPattern || '',
+              phonePattern: phonePattern || '',
+              addressPattern: addressPattern || ''
+            })
           });
+          const result = await resp.json();
           if (result.success) {
             setSITE_DATA(prev => ({
               ...prev,
