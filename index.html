@@ -149,7 +149,7 @@
           }
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site: newSampleSite.trim(),
-            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts2)))),
+            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts2)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
             orderNumberLabel: getLabel(orderNumberPattern),
             priceLabel: getLabel(pricePattern),
             receiverLabel: getLabel(receiverPattern),
@@ -1709,10 +1709,10 @@ const loadConfigFromSheet = async (overrideUrl) => {
           jsonLen += item.length;
         }
         try {
-          const encodePattern = (p) => p ? btoa(unescape(encodeURIComponent(p))) : '';
+          const encodePattern = (p) => p ? btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '') : '';
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site,
-            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts)))),
+            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
             orderNumberLabel,
             priceLabel,
             receiverLabel,
