@@ -148,7 +148,7 @@
           }
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site: newSampleSite.trim(),
-            fixedTexts: JSON.stringify(trimmedTexts2),
+            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts2)))),
             orderNumberLabel: getLabel(orderNumberPattern),
             priceLabel: getLabel(pricePattern),
             receiverLabel: getLabel(receiverPattern),
@@ -1702,7 +1702,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
           const encodePattern = (p) => p ? btoa(unescape(encodeURIComponent(p))) : '';
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site,
-            fixedTexts: JSON.stringify(trimmedTexts),
+            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts)))),
             orderNumberLabel,
             priceLabel,
             receiverLabel,
@@ -1727,6 +1727,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
             }));
             if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
             console.log(`✅ "${site}" 샘플+패턴 저장 완료`);
+            await loadSharedConfig(); // 저장 직후 공용 시트 재로드
             return true;
           } else {
             alert(`❌ 샘플 저장 실패: ${result.error}`);
