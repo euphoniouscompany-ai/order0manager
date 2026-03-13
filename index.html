@@ -104,6 +104,154 @@
       );
     };
 
+    const SharedSiteManagerTab = ({ SITE_DATA, setSITE_DATA, sharedJsonpCall, loadSharedConfig,
+      extractPriceCandidates, extractFixedTexts, extractPattern,
+      newSampleSite, setNewSampleSite, newSampleText, setNewSampleText,
+      newSampleOrderNum, setNewSampleOrderNum, newSamplePrice, setNewSamplePrice,
+      newSamplePriceRaw, setNewSamplePriceRaw, newSampleReceiver, setNewSampleReceiver,
+      SITES, setSITES }) => {
+
+      const [saving, setSaving] = React.useState(false);
+
+      const deleteSite = async (site) => {
+        if (!confirm(`"${site}" 학습 데이터를 삭제할까요?`)) return;
+        try {
+          const result = await sharedJsonpCall('deleteSharedSiteSample', { site });
+          if (result.success) {
+            setSITE_DATA(prev => { const n = {...prev}; delete n[site]; return n; });
+          } else {
+            alert('삭제 실패: ' + result.error);
+          }
+        } catch(e) { alert('삭제 실패: ' + e.message); }
+      };
+
+      const saveNew = async () => {
+        if (!newSampleSite.trim() || !newSampleText.trim() || !newSampleOrderNum || !newSamplePrice) {
+          alert('사이트명, 주문서, 주문번호, 금액을 모두 입력하세요');
+          return;
+        }
+        setSaving(true);
+        try {
+          const fixedTexts = extractFixedTexts(newSampleText);
+          const orderNumberPattern = extractPattern(newSampleText, newSampleOrderNum, 'orderNumber');
+          const pricePattern = extractPattern(newSampleText, newSamplePriceRaw || newSamplePrice, 'price');
+          const receiverPattern = extractPattern(newSampleText, newSampleReceiver, 'receiver');
+          const getLabel = (p) => p ? p.replace(/[\[\]()?+*{}|\\]/g, '').replace(/\s\*/g,'').trim() : '';
+
+          const result = await sharedJsonpCall('saveSharedSiteSample', {
+            site: newSampleSite.trim(),
+            fixedTexts: JSON.stringify(fixedTexts),
+            orderNumberLabel: getLabel(orderNumberPattern),
+            priceLabel: getLabel(pricePattern),
+            receiverLabel: getLabel(receiverPattern),
+            orderNumberPattern: orderNumberPattern || '',
+            pricePattern: pricePattern || '',
+            receiverPattern: receiverPattern || '',
+            phonePattern: '',
+            addressPattern: ''
+          });
+          if (result.success) {
+            setSITE_DATA(prev => ({
+              ...prev,
+              [newSampleSite.trim()]: {
+                fixedTexts,
+                orderNumberLabel: getLabel(orderNumberPattern),
+                priceLabel: getLabel(pricePattern),
+                receiverLabel: getLabel(receiverPattern),
+                orderNumber: orderNumberPattern || '',
+                price: pricePattern || '',
+                receiver: receiverPattern || ''
+              }
+            }));
+            if (!SITES.includes(newSampleSite.trim())) setSITES(prev => [...prev, newSampleSite.trim()]);
+            setNewSampleSite(''); setNewSampleText(''); setNewSampleOrderNum('');
+            setNewSamplePrice(''); setNewSamplePriceRaw(''); setNewSampleReceiver('');
+          } else {
+            alert('저장 실패: ' + result.error);
+          }
+        } catch(e) { alert('저장 실패: ' + e.message); }
+        setSaving(false);
+      };
+
+      const inText = (val) => val && newSampleText.includes(val);
+      const priceCands = newSampleText ? extractPriceCandidates(newSampleText) : [];
+
+      return React.createElement('div', null,
+        // 등록된 사이트 목록
+        Object.keys(SITE_DATA).length === 0
+          ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' } }, '등록된 학습 데이터 없음')
+          : React.createElement('div', { style: { marginBottom: '1.5rem' } },
+              Object.entries(SITE_DATA).map(([site, data]) =>
+                React.createElement('div', {
+                  key: site,
+                  style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '0.4rem', background: '#f8fafc' }
+                },
+                  React.createElement('div', null,
+                    React.createElement('span', { style: { fontWeight: '600', color: '#1e293b' } }, site),
+                    React.createElement('span', { style: { marginLeft: '0.8rem', fontSize: '0.78rem', color: '#64748b' } },
+                      `주문번호: ${data.orderNumberLabel || '-'} | 금액: ${data.priceLabel || '-'} | 수취인: ${data.receiverLabel || '-'}`
+                    )
+                  ),
+                  React.createElement('button', {
+                    onClick: () => deleteSite(site),
+                    style: { border: '1px solid #fca5a5', borderRadius: '6px', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: '0.8rem', padding: '0.25rem 0.6rem' }
+                  }, '🗑️ 삭제')
+                )
+              )
+            ),
+        // 새 사이트 등록
+        React.createElement('div', { style: { borderTop: '1px solid #e2e8f0', paddingTop: '1rem' } },
+          React.createElement('p', { style: { fontSize: '0.8rem', fontWeight: '600', color: '#475569', marginBottom: '0.75rem' } }, '➕ 새 사이트 등록'),
+          React.createElement('input', {
+            type: 'text', value: newSampleSite, onChange: e => setNewSampleSite(e.target.value),
+            placeholder: '사이트명 (예: 티몬)',
+            style: { width: '100%', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.85rem', boxSizing: 'border-box', marginBottom: '0.5rem' }
+          }),
+          React.createElement('textarea', {
+            value: newSampleText, onChange: e => setNewSampleText(e.target.value),
+            placeholder: '주문서 전체 텍스트 붙여넣기',
+            rows: 4,
+            style: { width: '100%', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.82rem', boxSizing: 'border-box', resize: 'vertical', marginBottom: '0.5rem' }
+          }),
+          React.createElement('div', { style: { display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' } },
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('input', {
+                type: 'text', value: newSampleOrderNum, onChange: e => setNewSampleOrderNum(e.target.value),
+                placeholder: '주문번호',
+                style: { width: '100%', padding: '0.5rem', boxSizing: 'border-box', borderRadius: '6px', fontSize: '0.85rem', border: !newSampleOrderNum ? '1px solid #e2e8f0' : inText(newSampleOrderNum) ? '2px solid #10b981' : '2px solid #f59e0b' }
+              })
+            ),
+            React.createElement('div', { style: { flex: 1 } },
+              priceCands.length > 0 && React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginBottom: '0.3rem' } },
+                priceCands.map((c, i) => React.createElement('button', {
+                  key: i, onClick: () => { setNewSamplePrice(c.value); setNewSamplePriceRaw(c.rawValue); },
+                  style: { padding: '0.15rem 0.5rem', fontSize: '0.75rem', cursor: 'pointer', borderRadius: '12px', border: newSamplePrice === c.value ? '2px solid #3b82f6' : '1px solid #cbd5e1', background: newSamplePrice === c.value ? '#eff6ff' : 'white', color: newSamplePrice === c.value ? '#1d4ed8' : '#475569' }
+                }, `${c.label}: ${Number(c.value).toLocaleString()}원`))
+              ),
+              React.createElement('input', {
+                type: 'text', value: newSamplePrice, onChange: e => { const v = e.target.value.replace(/,/g,''); setNewSamplePrice(v); setNewSamplePriceRaw(v); },
+                placeholder: '결제금액',
+                style: { width: '100%', padding: '0.5rem', boxSizing: 'border-box', borderRadius: '6px', fontSize: '0.85rem', border: !newSamplePrice ? '1px solid #e2e8f0' : inText(newSamplePriceRaw||newSamplePrice) ? '2px solid #10b981' : '2px solid #f59e0b' }
+              })
+            ),
+            React.createElement('div', { style: { flex: 1 } },
+              React.createElement('input', {
+                type: 'text', value: newSampleReceiver, onChange: e => setNewSampleReceiver(e.target.value),
+                placeholder: '수취인',
+                style: { width: '100%', padding: '0.5rem', boxSizing: 'border-box', borderRadius: '6px', fontSize: '0.85rem', border: !newSampleReceiver ? '1px solid #e2e8f0' : inText(newSampleReceiver) ? '2px solid #10b981' : '2px solid #f59e0b' }
+              })
+            )
+          ),
+          React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
+            React.createElement('button', {
+              onClick: saveNew, disabled: saving,
+              style: { padding: '0.5rem 1.2rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }
+            }, saving ? '저장 중...' : '✅ 저장')
+          )
+        )
+      );
+    };
+
     const SharedSitesTab = ({ sharedConfig, sharedJsonpCall, loadSharedConfig }) => {
       const sites = sharedConfig?.sharedSites || [];
       const DEFAULT_SITES_LIST = ['쿠팡','네이버','카카오톡쇼핑','올림달영','오늘의집','옥션','GSSHOP','SSG','무신사','크몽','11번가','롯데온','지마켓'];
@@ -529,7 +677,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
           })));
           
           if (config.labelMappings) setLearnedMappings(config.labelMappings);
-          if (config.siteData) setSITE_DATA(config.siteData);
+          // siteData는 공용 시트에서만 로드 (개인 시트 무시)
           
           setConfigError('');
           setLoading(false);
@@ -2037,14 +2185,7 @@ return {
             React.createElement('p', {
               style: { margin: '0.5rem 0 0 0', opacity: 0.9, fontSize: '0.95rem' }
             }, '모든 쇼핑몰 지원 | 자동 파싱 + 수동 수정'),
-            React.createElement('button', {
-              onClick: () => setShowSiteManager(true),
-              style: {
-                marginTop: '0.75rem', padding: '0.4rem 1rem',
-                background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
-                borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem'
-              }
-            }, '🏪 사이트 관리'),
+
 
             // 공용 관리 버튼
             React.createElement('button', {
@@ -3776,7 +3917,7 @@ return {
                         background: sharedTab === tab ? '#eff6ff' : 'white',
                         color: sharedTab === tab ? '#1d4ed8' : '#64748b', fontWeight: sharedTab === tab ? '600' : '400'
                       }
-                    }, tab === 'users' ? '👤 사용자' : tab === 'sites' ? '🏪 사이트' : tab === 'labelMappings' ? '🏷️ 라벨 매핑' : '📋 폼 매핑')
+                    }, tab === 'users' ? '👤 사용자' : tab === 'sites' ? '🏪 사이트 관리' : tab === 'labelMappings' ? '🏷️ 라벨 매핑' : '📋 폼 매핑')
                   )
                 ),
 
@@ -3791,8 +3932,13 @@ return {
                 }),
 
                 // ── 공용 사이트 탭 ──
-                sharedTab === 'sites' && React.createElement(SharedSitesTab, {
-                  sharedConfig, sharedJsonpCall, loadSharedConfig
+                sharedTab === 'sites' && React.createElement(SharedSiteManagerTab, {
+                  SITE_DATA, setSITE_DATA, sharedJsonpCall, loadSharedConfig,
+                  extractPriceCandidates, extractFixedTexts, extractPattern,
+                  newSampleSite, setNewSampleSite, newSampleText, setNewSampleText,
+                  newSampleOrderNum, setNewSampleOrderNum, newSamplePrice, setNewSamplePrice,
+                  newSamplePriceRaw, setNewSamplePriceRaw, newSampleReceiver, setNewSampleReceiver,
+                  SITES, setSITES
                 }),
 
                 // ── 폼 매핑 탭 ──
