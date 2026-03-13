@@ -20,6 +20,7 @@
       -webkit-font-smoothing: antialiased;
       -moz-osx-font-smoothing: grayscale;
     }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -516,7 +517,8 @@
       const SHARED_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0R8R5gyhM-j40MOZIbyOJtGdJuOYAi5WN_HKbD7Tiw4B5aMqKSGo9NdW8H6j_lmWz/exec';
       const [currentUser, setCurrentUser] = useState('');         // 현재 선택된 사용자
       const [users, setUsers] = useState([]);                      // 사용자 목록
-      const [showUserSelect, setShowUserSelect] = useState(false); // 사용자 선택 모달
+      const [showUserSelect, setShowUserSelect] = useState(true); // 사용자 선택 모달 (시작 시 무조건 표시)
+      const [isLoadingConfig, setIsLoadingConfig] = useState(false); // 설정 로딩 중
       const [showSharedManager, setShowSharedManager] = useState(false); // 공용 관리 모달
       const [sharedConfig, setSharedConfig] = useState(null);      // 공용 설정 전체
       const [sharedTab, setSharedTab] = useState('users');         // 공용 관리 탭
@@ -611,11 +613,13 @@ const sharedJsonpCall = (action, params = {}) => {
 // ── 사용자 선택 후 개인 스크립트 URL로 개인 설정 로드 ──
 const selectUser = async (user) => {
   setCurrentUser(user.name);
+  setIsLoadingConfig(true);
   setShowUserSelect(false);
   // 선택된 사용자의 개인 URL로 개인 설정 로드
   if (user.personalUrl) {
     await loadConfigFromSheet(user.personalUrl);
   }
+  setIsLoadingConfig(false);
 };
 
 const loadConfigFromSheet = async (overrideUrl) => {
@@ -779,6 +783,12 @@ const loadConfigFromSheet = async (overrideUrl) => {
           console.log('  수취인 라벨 부적합 → 패턴 저장 안 함');
           return '';
         }
+        // 실제 구분자 확인 (탭이면 탭, 공백이면 공백)
+        const charAfterLabel = fullText.substring(index - searchValue.length - 1, index - searchValue.length + 1);
+        if (/\t/.test(charAfterLabel) || /\t/.test(fullText.substring(fullText.lastIndexOf(label, index), index + 1))) {
+          // 탭 구분자 → 탭 이후 내용 전체 (가장 정확)
+          return label + '\\t([^\\t\\n]+)';
+        }
         valuePattern = '([가-힣]{2,5})';
       } else if (fieldType === 'address') {
         valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
@@ -890,7 +900,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         
         if (patterns.receiver) {
           try {
-            const regex = new RegExp(patterns.receiver, 'i');
+            const regex = new RegExp(patterns.receiver, 'im');
             const match = text.match(regex);
             if (match && match[1]) {
               result.receiver = match[1].trim();
@@ -1337,7 +1347,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         const newOrders = [...orders];
         newOrders[index][field] = value;
         if (field === 'person') {
-          newOrders[index].personId = PRESETS[value].coupangId;
+          newOrders[index].personId = PRESETS[value]?.coupangId || '';
         }
         setOrders(newOrders);
       };
@@ -1379,7 +1389,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
             cartNumber: '',
             price: '',
             person: Object.keys(PRESETS)[0],
-            personId: PRESETS[Object.keys(PRESETS)[0]].coupangId,
+            personId: PRESETS[Object.keys(PRESETS)[0]]?.coupangId || '',
             card: CARDS[0],
             deliveryType: DELIVERY_TYPES[0],
             reviewMethod: REVIEW_METHODS[0],
@@ -3879,6 +3889,26 @@ return {
             ),
 
             // ── 사용자 선택 모달 ──
+            // 설정 로딩 중 오버레이
+            isLoadingConfig && React.createElement('div', {
+              style: {
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                justifyContent: 'center', zIndex: 3000, gap: '1rem'
+              }
+            },
+              React.createElement('div', {
+                style: {
+                  width: '48px', height: '48px', border: '5px solid rgba(255,255,255,0.3)',
+                  borderTop: '5px solid white', borderRadius: '50%',
+                  animation: 'spin 0.8s linear infinite'
+                }
+              }),
+              React.createElement('p', {
+                style: { color: 'white', fontSize: '1rem', fontWeight: '500', margin: 0 }
+              }, '⏳ 설정을 불러오는 중... 잠시만 기다려주세요.')
+            ),
+
             showUserSelect && React.createElement('div', {
               style: {
                 position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
@@ -3891,7 +3921,9 @@ return {
                   width: '360px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
                 }
               },
-                React.createElement('h3', { style: { margin: '0 0 1.5rem', fontSize: '1.1rem' } }, '👤 사용자 선택'),
+                React.createElement('h3', { style: { margin: '0 0 0.5rem', fontSize: '1.1rem' } }, '👤 사용자 선택'),
+                React.createElement('p', { style: { margin: '0 0 1.5rem', fontSize: '0.85rem', color: '#64748b' } }, 
+                  currentUser ? '사용자를 변경합니다.' : '⚠️ 시작 전 사용자를 선택해주세요.'),
                 users.length === 0
                   ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.9rem' } },
                       '등록된 사용자가 없습니다. 공용 관리에서 추가하세요.')
@@ -3910,7 +3942,7 @@ return {
                         }, `👤 ${user.name}`)
                       )
                     ),
-                React.createElement('button', {
+                currentUser && React.createElement('button', {
                   onClick: () => setShowUserSelect(false),
                   style: {
                     marginTop: '1.5rem', width: '100%', padding: '0.6rem',
