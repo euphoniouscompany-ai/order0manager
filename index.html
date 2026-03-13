@@ -1182,7 +1182,16 @@ const loadConfigFromSheet = async (overrideUrl) => {
       const handlePaste = (index, text) => {
         const parsed = parseOrderText(text);
         const newOrders = [...orders];
-        
+
+        // 주문번호 중복 체크
+        if (parsed.orderNumber) {
+          const duplicate = orders.find((o, i) => i !== index && o.orderNumber === parsed.orderNumber);
+          if (duplicate) {
+            alert(`⚠️ 중복 주문번호입니다: ${parsed.orderNumber}\n이미 ${orders.indexOf(duplicate) + 1}번 주문에 입력되어 있습니다.`);
+            return;
+          }
+        }
+
         // PRESETS 확인 (더 상세하게)
         const presetKeys = Object.keys(PRESETS);
         console.log('📋 현재 PRESETS:', presetKeys.length > 0 ? presetKeys.join(', ') : '비어있음');
@@ -1826,7 +1835,9 @@ const loadConfigFromSheet = async (overrideUrl) => {
               const values = parts.map(part => {
                 const fieldName = part.trim();
                 const key = mapFieldToKey(fieldName);
-                return data[key] || '';
+                let val = data[key] || '';
+                if (key === 'account') val = val.toString().replace(/-/g, '');
+                return val;
               });
               
               // 슬래시 앞뒤 공백 유지
@@ -1866,6 +1877,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
                   value = `${data.bank || ''} ${data.accountWithHyphen || data.account || ''} ${data.accountHolder || ''}`.trim();
                 } else {
                   value = data[key] || '';
+                  if (key === 'account') value = value.toString().replace(/-/g, '');
                 }
                 
                 if (removeLabels) {
