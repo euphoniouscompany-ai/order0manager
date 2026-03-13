@@ -106,8 +106,10 @@
 
     const SharedSitesTab = ({ sharedConfig, sharedJsonpCall, loadSharedConfig }) => {
       const sites = sharedConfig?.sharedSites || [];
+      const DEFAULT_SITES_LIST = ['쿠팡','네이버','카카오톡쇼핑','올림달영','오늘의집','옥션','GSSHOP','SSG','무신사','크몽','11번가','롯데온','지마켓'];
       const [newSite, setNewSite] = React.useState('');
       const [saving, setSaving] = React.useState(false);
+      const [bulkSaving, setBulkSaving] = React.useState(false);
 
       const save = async () => {
         if (!newSite.trim()) return;
@@ -126,7 +128,17 @@
         await loadSharedConfig();
       };
 
+      const saveAll = async () => {
+        if (!confirm('기본 사이트 목록 전체를 저장할까요?')) return;
+        setBulkSaving(true);
+        const merged = [...new Set([...sites, ...DEFAULT_SITES_LIST])];
+        await sharedJsonpCall('saveSharedSites', { sites: merged.join(',') });
+        await loadSharedConfig();
+        setBulkSaving(false);
+      };
+
       return React.createElement('div', null,
+        // 현재 목록
         sites.length === 0
           ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' } }, '등록된 공용 사이트 없음')
           : React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1rem' } },
@@ -141,10 +153,18 @@
                 }, '✕')
               ))
             ),
+        // 한번에 저장 버튼
+        sites.length === 0 && React.createElement('button', {
+          onClick: saveAll, disabled: bulkSaving,
+          style: { width: '100%', padding: '0.6rem', marginBottom: '1rem', background: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem', fontWeight: '600' }
+        }, bulkSaving ? '저장 중...' : '✅ 기본 사이트 목록 한번에 저장'),
+        // 개별 추가
         React.createElement('div', { style: { display: 'flex', gap: '0.5rem' } },
           React.createElement('input', {
-            type: 'text', value: newSite, onChange: e => setNewSite(e.target.value),
-            placeholder: '새 사이트명',
+            type: 'text', value: newSite,
+            onChange: e => setNewSite(e.target.value),
+            onKeyDown: e => e.key === 'Enter' && save(),
+            placeholder: '새 사이트명 입력 후 추가',
             style: { flex: 1, padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.9rem' }
           }),
           React.createElement('button', {
@@ -343,11 +363,11 @@ const selectUser = async (user) => {
   }
 };
 
-const loadConfigFromSheet = async () => {
-  const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
-  
-  if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-    setConfigError('⚠️ Apps Script URL을 설정해주세요');
+const loadConfigFromSheet = async (overrideUrl) => {
+  const APPS_SCRIPT_URL = overrideUrl || '';
+
+  if (!APPS_SCRIPT_URL) {
+    // URL 없으면 조용히 스킵 (사용자 선택 전)
     setLoading(false);
     return;
   }
@@ -1245,8 +1265,10 @@ const loadConfigFromSheet = async () => {
         return result;
       };
 
-      // 새 라벨 매핑 저장 (Apps Script로 전송)
+      // 개인 Apps Script JSONP 호출
       const jsonpCall = (params) => new Promise((resolve, reject) => {
+        const url = getPersonalUrl();
+        if (!url) { reject(new Error('사용자를 먼저 선택해주세요')); return; }
         const cbName = 'cb_' + Date.now();
         const timeout = setTimeout(() => {
           delete window[cbName];
@@ -1260,7 +1282,7 @@ const loadConfigFromSheet = async () => {
         const qs = Object.entries({...params, callback: cbName})
           .map(([k,v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join('&');
         const script = document.createElement('script');
-        script.src = APPS_SCRIPT_URL + '?' + qs;
+        script.src = url + '?' + qs;
         script.onerror = () => { clearTimeout(timeout); reject(new Error('Script load failed')); };
         document.body.appendChild(script);
       });
@@ -1344,11 +1366,17 @@ const loadConfigFromSheet = async () => {
         return candidates;
       };
 
-      const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
+      // 개인 URL은 currentUser 선택 시 동적으로 결정됨
+      const getPersonalUrl = () => {
+        const user = users.find(u => u.name === currentUser);
+        return user ? user.personalUrl : '';
+      };
 
       // JSONP GET 호출 공통 함수
 
       const saveSitePattern = async (site, orderNumber, price, receiver) => {
+        const APPS_SCRIPT_URL = getPersonalUrl();
+        if (!APPS_SCRIPT_URL) { console.warn('개인 URL 없음 - 사용자를 선택하세요'); return; }
         // 패턴 추출
         const orderNumberPattern = extractPattern(learningData.rawText, orderNumber, 'orderNumber');
         const pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || price, 'price');
@@ -1757,17 +1785,17 @@ ${order.price}`;
       };
 
       const saveToGoogleSheets = async () => {
-        const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
-        
+        const APPS_SCRIPT_URL = getPersonalUrl();
+
         console.log('💾 저장 시작 - orders state:', orders.map(o => ({
           card: o.card,
           deliveryType: o.deliveryType,
           reviewMethod: o.reviewMethod,
           reviewFee: o.reviewFee
         })));
-        
-        if (APPS_SCRIPT_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-          alert('⚠️ Apps Script URL을 설정해주세요!\n\n파일을 텍스트 에디터로 열어서\nYOUR_APPS_SCRIPT_URL_HERE를\n실제 URL로 교체하세요.');
+
+        if (!APPS_SCRIPT_URL) {
+          alert('⚠️ 사용자를 먼저 선택해주세요.\n\n우상단 👤 사용자 선택 버튼을 눌러 선택하세요.');
           return;
         }
 
