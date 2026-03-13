@@ -38,6 +38,203 @@
     const DEFAULT_REVIEW_METHODS = [];
     const DEFAULT_REVIEW_FEES = [];
 
+    // ════════════════════════════════
+    // 공용 관리 탭 컴포넌트들
+    // ════════════════════════════════
+
+    const SharedUsersTab = ({ users, setUsers, sharedJsonpCall, loadSharedConfig }) => {
+      const [name, setName] = React.useState('');
+      const [url, setUrl] = React.useState('');
+      const [saving, setSaving] = React.useState(false);
+
+      const save = async () => {
+        if (!name.trim()) return alert('사용자명을 입력하세요');
+        setSaving(true);
+        try {
+          await sharedJsonpCall('saveUser', { name: name.trim(), personalUrl: url.trim() });
+          await loadSharedConfig();
+          setName(''); setUrl('');
+        } catch(e) { alert('저장 실패: ' + e.message); }
+        setSaving(false);
+      };
+
+      const del = async (userName) => {
+        if (!confirm(`"${userName}" 삭제할까요?`)) return;
+        await sharedJsonpCall('deleteUser', { name: userName });
+        await loadSharedConfig();
+      };
+
+      return React.createElement('div', null,
+        // 사용자 목록
+        React.createElement('div', { style: { marginBottom: '1.5rem' } },
+          users.length === 0
+            ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.9rem' } }, '등록된 사용자 없음')
+            : users.map(u => React.createElement('div', {
+                key: u.name,
+                style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 0.8rem', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '0.4rem' }
+              },
+                React.createElement('div', null,
+                  React.createElement('div', { style: { fontWeight: '600', fontSize: '0.9rem' } }, '👤 ' + u.name),
+                  React.createElement('div', { style: { fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' } }, u.personalUrl || '개인 URL 없음')
+                ),
+                React.createElement('button', {
+                  onClick: () => del(u.name),
+                  style: { border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem' }
+                }, '🗑️')
+              ))
+        ),
+        // 추가 폼
+        React.createElement('div', { style: { borderTop: '1px solid #e2e8f0', paddingTop: '1rem' } },
+          React.createElement('p', { style: { fontWeight: '600', fontSize: '0.85rem', marginBottom: '0.8rem' } }, '+ 사용자 추가'),
+          React.createElement('input', {
+            type: 'text', value: name, onChange: e => setName(e.target.value),
+            placeholder: '사용자명 (예: 이해운)',
+            style: { width: '100%', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '0.5rem', boxSizing: 'border-box', fontSize: '0.9rem' }
+          }),
+          React.createElement('input', {
+            type: 'text', value: url, onChange: e => setUrl(e.target.value),
+            placeholder: '개인 Apps Script URL',
+            style: { width: '100%', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '0.8rem', boxSizing: 'border-box', fontSize: '0.9rem' }
+          }),
+          React.createElement('button', {
+            onClick: save, disabled: saving,
+            style: { padding: '0.5rem 1.2rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }
+          }, saving ? '저장 중...' : '저장')
+        )
+      );
+    };
+
+    const SharedSitesTab = ({ sharedConfig, sharedJsonpCall, loadSharedConfig }) => {
+      const sites = sharedConfig?.sharedSites || [];
+      const [newSite, setNewSite] = React.useState('');
+      const [saving, setSaving] = React.useState(false);
+
+      const save = async () => {
+        if (!newSite.trim()) return;
+        setSaving(true);
+        const updated = [...sites, newSite.trim()].join(',');
+        await sharedJsonpCall('saveSharedSites', { sites: updated });
+        await loadSharedConfig();
+        setNewSite('');
+        setSaving(false);
+      };
+
+      const del = async (site) => {
+        if (!confirm(`"${site}" 삭제할까요?`)) return;
+        const updated = sites.filter(s => s !== site).join(',');
+        await sharedJsonpCall('saveSharedSites', { sites: updated });
+        await loadSharedConfig();
+      };
+
+      return React.createElement('div', null,
+        sites.length === 0
+          ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1rem' } }, '등록된 공용 사이트 없음')
+          : React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: '1rem' } },
+              sites.map(s => React.createElement('span', {
+                key: s,
+                style: { display: 'inline-flex', alignItems: 'center', gap: '0.3rem', padding: '0.3rem 0.7rem', background: '#f1f5f9', borderRadius: '20px', fontSize: '0.85rem' }
+              },
+                s,
+                React.createElement('button', {
+                  onClick: () => del(s),
+                  style: { border: 'none', background: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '0.8rem', padding: 0 }
+                }, '✕')
+              ))
+            ),
+        React.createElement('div', { style: { display: 'flex', gap: '0.5rem' } },
+          React.createElement('input', {
+            type: 'text', value: newSite, onChange: e => setNewSite(e.target.value),
+            placeholder: '새 사이트명',
+            style: { flex: 1, padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.9rem' }
+          }),
+          React.createElement('button', {
+            onClick: save, disabled: saving,
+            style: { padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.9rem' }
+          }, saving ? '저장 중' : '추가')
+        )
+      );
+    };
+
+    const SharedFormMappingsTab = ({ sharedConfig, sharedJsonpCall, loadSharedConfig }) => {
+      const mappings = sharedConfig?.formMappings || {};
+      const [formUrl, setFormUrl] = React.useState('');
+      const [label, setLabel] = React.useState('');
+      const [dataKey, setDataKey] = React.useState('');
+      const [saving, setSaving] = React.useState(false);
+
+      const DATA_KEYS = [
+        { key: 'receiver', label: '수취인' },
+        { key: 'price', label: '결제금액' },
+        { key: 'orderNumber', label: '주문번호' },
+        { key: 'site', label: '사이트' },
+        { key: 'bank', label: '은행명' },
+        { key: 'accountWithHyphen', label: '계좌번호(-)' },
+        { key: 'accountHolder', label: '계좌 성함' },
+        { key: 'phone', label: '전화번호' },
+        { key: 'address', label: '주소' },
+      ];
+
+      const save = async () => {
+        if (!formUrl.trim() || !label.trim() || !dataKey) return alert('모두 입력하세요');
+        setSaving(true);
+        await sharedJsonpCall('saveFormMapping', { formUrl: formUrl.trim(), label: label.trim(), dataKey });
+        await loadSharedConfig();
+        setLabel(''); setDataKey('');
+        setSaving(false);
+      };
+
+      const del = async (fUrl, lbl) => {
+        await sharedJsonpCall('deleteFormMapping', { formUrl: fUrl, label: lbl });
+        await loadSharedConfig();
+      };
+
+      return React.createElement('div', null,
+        // 폼 URL 입력
+        React.createElement('input', {
+          type: 'text', value: formUrl, onChange: e => setFormUrl(e.target.value),
+          placeholder: '폼 URL (예: https://docs.google.com/forms/...)',
+          style: { width: '100%', padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', marginBottom: '1rem', boxSizing: 'border-box', fontSize: '0.85rem' }
+        }),
+        // 현재 이 폼의 매핑 목록
+        mappings[formUrl] && Object.entries(mappings[formUrl]).length > 0
+          ? React.createElement('div', { style: { marginBottom: '1rem' } },
+              React.createElement('p', { style: { fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem' } }, '저장된 매핑:'),
+              Object.entries(mappings[formUrl]).map(([lbl, key]) =>
+                React.createElement('div', {
+                  key: lbl,
+                  style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.4rem 0.6rem', background: '#f8fafc', borderRadius: '6px', marginBottom: '0.3rem', fontSize: '0.85rem' }
+                },
+                  React.createElement('span', null, `"${lbl}" → ${DATA_KEYS.find(d => d.key === key)?.label || key}`),
+                  React.createElement('button', {
+                    onClick: () => del(formUrl, lbl),
+                    style: { border: 'none', background: 'none', color: '#ef4444', cursor: 'pointer' }
+                  }, '🗑️')
+                )
+              )
+            )
+          : formUrl && React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.85rem', marginBottom: '1rem' } }, '이 폼의 매핑 없음'),
+        // 추가
+        React.createElement('div', { style: { display: 'flex', gap: '0.5rem', alignItems: 'center' } },
+          React.createElement('input', {
+            type: 'text', value: label, onChange: e => setLabel(e.target.value),
+            placeholder: '폼 라벨 (예: 수취인)',
+            style: { flex: 1, padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.85rem' }
+          }),
+          React.createElement('select', {
+            value: dataKey, onChange: e => setDataKey(e.target.value),
+            style: { padding: '0.5rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.85rem' }
+          },
+            React.createElement('option', { value: '' }, '데이터 선택'),
+            DATA_KEYS.map(d => React.createElement('option', { key: d.key, value: d.key }, d.label))
+          ),
+          React.createElement('button', {
+            onClick: save, disabled: saving,
+            style: { padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem' }
+          }, saving ? '저장 중' : '추가')
+        )
+      );
+    };
+
     const OrderManager = () => {
       // 동적 설정 (review-setting 시트에서 로드)
       const [PRESETS, setPRESETS] = useState(DEFAULT_PRESETS);
@@ -50,6 +247,15 @@
       const [REVIEW_METHODS, setREVIEW_METHODS] = useState(DEFAULT_REVIEW_METHODS);
       const [REVIEW_FEES, setREVIEW_FEES] = useState(DEFAULT_REVIEW_FEES);
       const [SITE_DATA, setSITE_DATA] = useState({});  // 주문서 학습 데이터 (패턴+샘플 통합)
+
+      // ── 공용 설정 ──
+      const SHARED_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx0R8R5gyhM-j40MOZIbyOJtGdJuOYAi5WN_HKbD7Tiw4B5aMqKSGo9NdW8H6j_lmWz/exec';
+      const [currentUser, setCurrentUser] = useState('');         // 현재 선택된 사용자
+      const [users, setUsers] = useState([]);                      // 사용자 목록
+      const [showUserSelect, setShowUserSelect] = useState(false); // 사용자 선택 모달
+      const [showSharedManager, setShowSharedManager] = useState(false); // 공용 관리 모달
+      const [sharedConfig, setSharedConfig] = useState(null);      // 공용 설정 전체
+      const [sharedTab, setSharedTab] = useState('users');         // 공용 관리 탭
 
       // 로딩 상태
       const [loading, setLoading] = useState(true);
@@ -70,7 +276,72 @@
         
         // 백그라운드에서 로드 시도 (실패해도 무시)
         loadConfigFromSheet();
+
+        // 공용 설정 로드
+        loadSharedConfig();
       }, []);
+
+// ── 공용 설정 로드 ──
+const loadSharedConfig = async () => {
+  try {
+    const data = await jsonpCall(SHARED_SCRIPT_URL, { action: 'getSharedConfig' });
+    if (data.success && data.config) {
+      setSharedConfig(data.config);
+      setUsers(data.config.users || []);
+      // 공용 사이트 목록 병합 (기존 SITES에 추가)
+      if (data.config.sharedSites && data.config.sharedSites.length > 0) {
+        setSITES(prev => {
+          const merged = [...prev];
+          data.config.sharedSites.forEach(s => { if (!merged.includes(s)) merged.push(s); });
+          return merged;
+        });
+      }
+      // 공용 주문서 학습 병합 (개인 데이터 우선)
+      if (data.config.sharedSiteData) {
+        setSITE_DATA(prev => ({ ...data.config.sharedSiteData, ...prev }));
+      }
+    }
+  } catch(e) {
+    console.warn('공용 설정 로드 실패:', e);
+  }
+};
+
+// ── 공용 JSONP 호출 ──
+const sharedJsonpCall = (action, params = {}) => {
+  return jsonpCall(SHARED_SCRIPT_URL, { action, ...params });
+};
+
+// ── 사용자 선택 후 개인 스크립트 URL로 개인 설정 로드 ──
+const selectUser = async (user) => {
+  setCurrentUser(user.name);
+  setShowUserSelect(false);
+  // 선택된 사용자의 개인 URL로 개인 설정 재로드
+  if (user.personalUrl) {
+    try {
+      const cbName = 'cb_' + Date.now();
+      const data = await new Promise((resolve, reject) => {
+        window[cbName] = (d) => { delete window[cbName]; resolve(d); };
+        const s = document.createElement('script');
+        s.onerror = () => reject(new Error('load failed'));
+        s.src = user.personalUrl + '?action=getConfig&callback=' + cbName + '&t=' + Date.now();
+        document.head.appendChild(s);
+        setTimeout(() => reject(new Error('timeout')), 10000);
+      });
+      if (data.success && data.config) {
+        if (data.config.presets) setPRESETS(data.config.presets);
+        if (data.config.sites) setSITES(prev => {
+          const merged = [...data.config.sites];
+          prev.forEach(s => { if (!merged.includes(s)) merged.push(s); });
+          return merged;
+        });
+        if (data.config.cards) setCARDS(data.config.cards);
+        if (data.config.siteData) setSITE_DATA(prev => ({ ...data.config.siteData, ...prev }));
+      }
+    } catch(e) {
+      console.warn('개인 설정 로드 실패:', e);
+    }
+  }
+};
 
 const loadConfigFromSheet = async () => {
   const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxUHIN5oOqEUnrQ6_d2BvKMUkHdLNvJ4EZAozrV5IHUeSzjZV9-1uVaOcAw5eW4NDkX/exec';
@@ -1644,7 +1915,28 @@ return {
                 background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.5)',
                 borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem'
               }
-            }, '🏪 사이트 관리')
+            }, '🏪 사이트 관리'),
+
+            // 공용 관리 버튼
+            React.createElement('button', {
+              onClick: () => setShowSharedManager(true),
+              style: {
+                marginTop: '0.5rem', marginLeft: '0.5rem', padding: '0.4rem 1rem',
+                background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem'
+              }
+            }, '🌐 공용 관리'),
+
+            // 사용자 선택 버튼
+            React.createElement('button', {
+              onClick: () => setShowUserSelect(true),
+              style: {
+                marginTop: '0.5rem', marginLeft: '0.5rem', padding: '0.4rem 1rem',
+                background: currentUser ? 'rgba(16,185,129,0.3)' : 'rgba(255,255,255,0.1)',
+                border: '1px solid rgba(255,255,255,0.4)',
+                borderRadius: '6px', color: 'white', cursor: 'pointer', fontSize: '0.85rem'
+              }
+            }, currentUser ? `👤 ${currentUser}` : '👤 사용자 선택')
           ),
 
           React.createElement('div', { style: { padding: '2rem' } },
@@ -3274,6 +3566,105 @@ return {
                     }
                   }, '✅ 저장 + 적용')
                 )
+              )
+            ),
+
+            // ── 사용자 선택 모달 ──
+            showUserSelect && React.createElement('div', {
+              style: {
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+              }
+            },
+              React.createElement('div', {
+                style: {
+                  background: 'white', borderRadius: '12px', padding: '2rem',
+                  width: '360px', boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                }
+              },
+                React.createElement('h3', { style: { margin: '0 0 1.5rem', fontSize: '1.1rem' } }, '👤 사용자 선택'),
+                users.length === 0
+                  ? React.createElement('p', { style: { color: '#94a3b8', fontSize: '0.9rem' } },
+                      '등록된 사용자가 없습니다. 공용 관리에서 추가하세요.')
+                  : React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: '0.5rem' } },
+                      users.map(user =>
+                        React.createElement('button', {
+                          key: user.name,
+                          onClick: () => selectUser(user),
+                          style: {
+                            padding: '0.8rem 1rem', borderRadius: '8px', cursor: 'pointer',
+                            border: currentUser === user.name ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                            background: currentUser === user.name ? '#eff6ff' : 'white',
+                            color: currentUser === user.name ? '#1d4ed8' : '#1e293b',
+                            fontSize: '0.95rem', fontWeight: '500', textAlign: 'left'
+                          }
+                        }, `👤 ${user.name}`)
+                      )
+                    ),
+                React.createElement('button', {
+                  onClick: () => setShowUserSelect(false),
+                  style: {
+                    marginTop: '1.5rem', width: '100%', padding: '0.6rem',
+                    border: '1px solid #e2e8f0', borderRadius: '8px',
+                    background: 'white', cursor: 'pointer', color: '#64748b'
+                  }
+                }, '닫기')
+              )
+            ),
+
+            // ── 공용 관리 모달 ──
+            showSharedManager && React.createElement('div', {
+              style: {
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000
+              }
+            },
+              React.createElement('div', {
+                style: {
+                  background: 'white', borderRadius: '12px', padding: '2rem',
+                  width: '600px', maxHeight: '85vh', overflowY: 'auto',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+                }
+              },
+                // 헤더
+                React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' } },
+                  React.createElement('h3', { style: { margin: 0, fontSize: '1.1rem' } }, '🌐 공용 관리'),
+                  React.createElement('button', {
+                    onClick: () => setShowSharedManager(false),
+                    style: { border: 'none', background: 'none', fontSize: '1.3rem', cursor: 'pointer', color: '#64748b' }
+                  }, '✕')
+                ),
+
+                // 탭
+                React.createElement('div', { style: { display: 'flex', gap: '0.5rem', marginBottom: '1.5rem', borderBottom: '1px solid #e2e8f0', paddingBottom: '0.5rem' } },
+                  ['users', 'sites', 'formMappings'].map(tab =>
+                    React.createElement('button', {
+                      key: tab,
+                      onClick: () => setSharedTab(tab),
+                      style: {
+                        padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontSize: '0.85rem',
+                        border: sharedTab === tab ? '2px solid #3b82f6' : '1px solid #e2e8f0',
+                        background: sharedTab === tab ? '#eff6ff' : 'white',
+                        color: sharedTab === tab ? '#1d4ed8' : '#64748b', fontWeight: sharedTab === tab ? '600' : '400'
+                      }
+                    }, tab === 'users' ? '👤 사용자' : tab === 'sites' ? '🏪 사이트' : '📋 폼 매핑')
+                  )
+                ),
+
+                // ── 사용자 탭 ──
+                sharedTab === 'users' && React.createElement(SharedUsersTab, {
+                  users, setUsers, sharedJsonpCall, loadSharedConfig
+                }),
+
+                // ── 공용 사이트 탭 ──
+                sharedTab === 'sites' && React.createElement(SharedSitesTab, {
+                  sharedConfig, sharedJsonpCall, loadSharedConfig
+                }),
+
+                // ── 폼 매핑 탭 ──
+                sharedTab === 'formMappings' && React.createElement(SharedFormMappingsTab, {
+                  sharedConfig, sharedJsonpCall, loadSharedConfig
+                })
               )
             ),
 
