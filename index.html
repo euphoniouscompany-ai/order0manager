@@ -147,15 +147,16 @@
             trimmedTexts2.push(t);
             jsonLen2 += item.length;
           }
+          const encodePattern2 = (p) => p ? btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '') : '';
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site: newSampleSite.trim(),
             fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts2)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
             orderNumberLabel: getLabel(orderNumberPattern),
             priceLabel: getLabel(pricePattern),
             receiverLabel: getLabel(receiverPattern),
-            orderNumberPattern: orderNumberPattern || '',
-            pricePattern: pricePattern || '',
-            receiverPattern: receiverPattern || '',
+            orderNumberPattern: encodePattern2(orderNumberPattern),
+            pricePattern: encodePattern2(pricePattern),
+            receiverPattern: encodePattern2(receiverPattern),
             phonePattern: '',
             addressPattern: ''
           });
@@ -1710,9 +1711,11 @@ const loadConfigFromSheet = async (overrideUrl) => {
         }
         try {
           const encodePattern = (p) => p ? btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '') : '';
+          const encodedFixedTexts = btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+          console.log('📦 fixedTexts 원본 개수:', trimmedTexts.length, '/ 인코딩 길이:', encodedFixedTexts.length, '/ 앞20자:', encodedFixedTexts.substring(0,20));
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site,
-            fixedTexts: btoa(unescape(encodeURIComponent(JSON.stringify(trimmedTexts)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, ''),
+            fixedTexts: encodedFixedTexts,
             orderNumberLabel,
             priceLabel,
             receiverLabel,
