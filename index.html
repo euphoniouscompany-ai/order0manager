@@ -1449,13 +1449,15 @@ const loadConfigFromSheet = async (overrideUrl) => {
         const patterns = [
           /([가-힣a-zA-Z\s\(\)]{1,15})[:\t\s]+([\d,]{3,})\s*원/g,
           /([가-힣a-zA-Z\s\(\)]{1,15})[:\t\s]+([\d,]{3,})(?!\d)/g,
+          // 쿠팡: 라벨과 숫자 사이 구분자 없이 붙는 형태 (총 결제금액12,900 원)
+          /([가-힣]{2,10})([\d,]{4,})\s*원/g,
         ];
         for (const pattern of patterns) {
           let match;
           while ((match = pattern.exec(text)) !== null) {
             const label = match[1].replace(/[\n\t]/g, ' ').trim();
-            const rawValue = match[2];           // 원본 (콤마 포함, rawText 검색용)
-            const value = rawValue.replace(/,/g, ''); // 숫자만 (저장/표시용)
+            const rawValue = match[2];
+            const value = rawValue.replace(/,/g, '');
             const num = parseInt(value, 10);
             if (num >= 100 && num <= 10000000 && !seen.has(value)) {
               seen.add(value);
