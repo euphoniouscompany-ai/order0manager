@@ -1497,15 +1497,17 @@ const loadConfigFromSheet = async (overrideUrl) => {
         const fields = [];
         
         lines.forEach(line => {
-          // "이름:", "주문번호:" 같은 라벨 추출
-          const match = line.match(/^([^:：/]+)[:\：]?\s*$/);
-          if (match) {
-            fields.push(match[1].trim());
+          // "이름 / 전화번호" 같은 슬래시 구분 먼저
+          if (line.includes('/')) {
+            const parts = line.split('/').map(p => p.trim().replace(/[:\：=＝\s]+$/, ''));
+            fields.push(...parts.filter(p => p));
           }
-          // "이름 / 전화번호" 같은 슬래시 구분
-          else if (line.includes('/')) {
-            const parts = line.split('/').map(p => p.trim());
-            fields.push(...parts);
+          // "이름:", "주문번호:", "아이디=", "구입 채널 =" 등 구분자 포함
+          else {
+            const match = line.match(/^([^:：=＝/]+)[:\：=＝\s]*$/);
+            if (match) {
+              fields.push(match[1].trim());
+            }
           }
         });
         
@@ -1696,17 +1698,18 @@ const loadConfigFromSheet = async (overrideUrl) => {
           jsonLen += item.length;
         }
         try {
+          const encodePattern = (p) => p ? btoa(unescape(encodeURIComponent(p))) : '';
           const result = await sharedJsonpCall('saveSharedSiteSample', {
             site,
             fixedTexts: JSON.stringify(trimmedTexts),
             orderNumberLabel,
             priceLabel,
             receiverLabel,
-            orderNumberPattern: orderNumberPattern || '',
-            pricePattern: pricePattern || '',
-            receiverPattern: receiverPattern || '',
-            phonePattern: phonePattern || '',
-            addressPattern: addressPattern || ''
+            orderNumberPattern: encodePattern(orderNumberPattern),
+            pricePattern: encodePattern(pricePattern),
+            receiverPattern: encodePattern(receiverPattern),
+            phonePattern: encodePattern(phonePattern),
+            addressPattern: encodePattern(addressPattern)
           });
           if (result.success) {
             setSITE_DATA(prev => ({
