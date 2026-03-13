@@ -1389,7 +1389,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
 
       const saveLearnedMapping = async (label, key) => {
         try {
-          const result = await jsonpCall({ action: 'saveLabel', label, key });
+          const result = await sharedJsonpCall('saveSharedLabelMapping', { labelName: label, mappingKey: key });
           if (result.success) {
             setLearnedMappings(prev => ({ ...prev, [label]: key }));
             console.log(`✅ "${label}" → "${key}" 매핑 저장`);
@@ -1514,8 +1514,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
       const saveSiteSample = async (site, rawText, orderNumberLabel, priceLabel, receiverLabel, orderNumberPattern, pricePattern, receiverPattern, phonePattern, addressPattern) => {
         const fixedTexts = extractFixedTexts(rawText);
         try {
-          const result = await jsonpCall({
-            action: 'saveSiteSample',
+          const result = await sharedJsonpCall('saveSharedSiteSample', {
             site,
             fixedTexts: JSON.stringify(fixedTexts),
             orderNumberLabel,
@@ -1558,7 +1557,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
       const deleteSiteSample = async (site) => {
         if (!confirm(`"${site}" 샘플을 삭제하시겠습니까?`)) return;
         try {
-          const result = await jsonpCall({ action: 'deleteSiteSample', site });
+          const result = await sharedJsonpCall('deleteSharedSiteSample', { site });
           if (result.success) {
             setSITE_DATA(prev => { const n = {...prev}; delete n[site]; return n; });
             console.log(`✅ "${site}" 샘플 삭제 완료`);
