@@ -4057,7 +4057,7 @@ return {
                           key: i,
                           onClick: () => {
                             const before = (learningData.addressLabelBefore || '').trim();
-                            const pattern = ((before || '') + btn.suffix).replace(/₩/g, '\\');
+                            const bs = String.fromCharCode(92); const pattern = ((before || '') + btn.suffix).replace(/₩/g, bs);
                             setLearningData({...learningData, addressDirectPattern: pattern});
                           },
                           style: { padding: '0.25rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', cursor: 'pointer', fontSize: '0.75rem' }
