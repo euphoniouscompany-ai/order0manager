@@ -733,9 +733,13 @@ const loadConfigFromSheet = async (overrideUrl) => {
       if (fieldType === 'orderNumber') valuePattern = '([\\w\\d\\-]+)';
       else if (fieldType === 'price') valuePattern = '([\\d,]+)';
       else if (fieldType === 'receiver') valuePattern = '([가-힣]{2,5})';
-      else if (fieldType === 'address') valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)';
+      else if (fieldType === 'address') valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
 
-      const before = labelBefore ? esc(labelBefore) + '\\s*' : '';
+      // 앞라벨 끝이 탭이면 탭 구분자, 아니면 \s*
+      const beforeTrimmed = (labelBefore || '').trimEnd();
+      const hasTab = (labelBefore || '').includes('\t');
+      const sep = hasTab ? '\\t' : '\\s*';
+      const before = beforeTrimmed ? esc(beforeTrimmed) + sep : '';
       const after = labelAfter ? '\\s*' + esc(labelAfter) : '';
       return before + valuePattern + after;
     };
@@ -902,6 +906,11 @@ const loadConfigFromSheet = async (overrideUrl) => {
             const match = text.match(regex);
             if (match && match[1]) result.phone = match[1].trim();
           } catch(e) {}
+        }
+        // 전화번호 패턴 없거나 실패 시 원문에서 직접 추출 시도
+        if (!result.phone) {
+          const phoneM = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/);
+          if (phoneM) result.phone = phoneM[1];
         }
         if (patterns.address) {
           try {
@@ -1289,41 +1298,50 @@ const loadConfigFromSheet = async (overrideUrl) => {
             name: parsed.receiver || preset.name || '',
             receiver: parsed.receiver || preset.name || '',
             phone: (() => {
+              // 수취인 확인된 경우에만 프리셋 대조
+              if (!matchedPerson || !preset || !preset.phone) return parsed.phone || '';
               const p = parsed.phone || '';
-              // 마스킹(*포함) 또는 자릿수 부족하면 프리셋 뒷자리 대조
-              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 8;
-              if (isMasked && preset && preset.phone) {
-                const last4 = preset.phone.replace(/[^\d]/g,'').slice(-4);
-                if (last4 && text.includes(last4)) {
-                  console.log(`✅ 마스킹 감지: 프리셋 번호(${preset.phone})로 대체`);
-                  return preset.phone;
-                }
+              const presetDigits = preset.phone.replace(/[^\d]/g, '');
+              const last4 = presetDigits.slice(-4);
+              // 마스킹이거나 자릿수 부족한 경우
+              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 9;
+              if (isMasked) {
+                // 원문에 프리셋 뒷자리가 있으면 프리셋 사용
+                if (last4 && text.includes(last4)) return preset.phone;
+                return preset.phone; // 마스킹이면 무조건 프리셋
               }
-              return p || (preset && preset.phone) || '';
+              // 정상 번호: 원문 번호 뒷자리와 프리셋 뒷자리 비교
+              const parsedDigits = p.replace(/[^\d]/g, '');
+              if (parsedDigits.slice(-4) === last4) return preset.phone; // 프리셋이 더 정확
+              return p; // 다른 사람 번호면 원문 사용
             })(),
             phoneNoHyphen: (() => {
+              if (!matchedPerson || !preset || !preset.phone) return (parsed.phone || '').replace(/-/g,'');
               const p = parsed.phone || '';
-              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 8;
-              let final = p;
-              if (isMasked && preset && preset.phone) {
-                const last4 = preset.phone.replace(/[^\d]/g,'').slice(-4);
-                if (last4 && text.includes(last4)) final = preset.phone;
-              }
-              final = final || (preset && preset.phone) || '';
-              return final.replace(/-/g, '');
+              const presetDigits = preset.phone.replace(/[^\d]/g, '');
+              const last4 = presetDigits.slice(-4);
+              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 9;
+              if (isMasked) return presetDigits;
+              const parsedDigits = p.replace(/[^\d]/g, '');
+              return parsedDigits.slice(-4) === last4 ? presetDigits : parsedDigits;
             })(),
             address: (() => {
-              if (preset && preset.address && matchedPerson) {
-                // 파싱된 주소 일부가 프리셋 주소에 포함되면 프리셋 전체 주소 사용
-                const parsedAddr = (parsed.address || '').trim();
-                if (parsedAddr.length >= 4 && preset.address.includes(parsedAddr)) {
-                  return preset.address;
-                }
-                // 전화번호 뒷자리로도 확인
-                const last4 = (preset.phone || '').replace(/[^\d]/g,'').slice(-4);
-                if (last4 && text.includes(last4)) return preset.address;
-              }
-              return parsed.address || (preset && preset.address) || '';
+              const rawAddr = parsed.address || '';
+              // 수취인 확인된 경우에만 프리셋 주소 유사도 비교
+              if (!matchedPerson || !preset || !preset.address) return rawAddr;
+              // 음절 단위 자카드 유사도
+              const addrSim = (a, b) => {
+                if (!a || !b) return 0;
+                const sa = new Set(a.replace(/\s/g,'').split(''));
+                const sb = new Set(b.replace(/\s/g,'').split(''));
+                const inter = [...sa].filter(c => sb.has(c)).length;
+                const union = new Set([...sa, ...sb]).size;
+                return inter / union;
+              };
+              const sim = addrSim(rawAddr, preset.address);
+              console.log(`주소 유사도: ${(sim*100).toFixed(0)}% (원문: "${rawAddr.substring(0,20)}" / 프리셋: "${preset.address.substring(0,20)}")`);
+              // 40% 이상 유사하면 프리셋 사용
+              return sim >= 0.4 ? preset.address : (rawAddr || preset.address);
             })(),
             orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
             cartNumber: parsed.cartNumber || '',  // 장바구니번호
@@ -3928,106 +3946,28 @@ return {
                   )
                 ),
 
-                // ── 전화번호 ──
-                React.createElement('div', { style: { marginBottom: '1rem' } },
-                  React.createElement('label', {
-                    style: { display: 'block', fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.9rem' }
-                  }, '📞 전화번호'),
-                  React.createElement('input', {
-                    type: 'text',
-                    value: learningData.phone,
-                    onChange: (e) => {
-                      const v = e.target.value;
-                      const isMasked = v.includes('*') || v.replace(/[^\d]/g,'').length < 9;
-                      if (!isMasked) {
-                        const { before, after } = extractLabels(learningData.rawText, v);
-                        setLearningData({...learningData, phone: v, phoneLabelBefore: before, phoneLabelAfter: after});
-                      } else {
-                        setLearningData({...learningData, phone: v});
-                      }
-                    },
-                    placeholder: '010-0000-0000',
-                    style: {
-                      width: '100%', padding: '0.65rem',
-                      border: !learningData.phone ? '1px solid #cbd5e1'
-                        : learningData.rawText.includes(learningData.phone) ? '2px solid #10b981' : '2px solid #f59e0b',
-                      borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box'
-                    }
-                  }),
-                  learningData.phone && (() => {
-                    const p = learningData.phone;
-                    const raw = learningData.rawText || '';
-                    const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 9;
-                    const last4 = p.replace(/[^\d]/g,'').slice(-4);
-                    const isPreset = isMasked && last4 && raw.includes(last4);
-                    const isFound = raw.includes(p);
-                    if (isPreset) return React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#10b981' } },
-                      '✅ 프리셋에서 가져옴 (마스킹 자동 해제) — 패턴 저장 안 함');
-                    if (!isFound) return null;
-                    return React.createElement('div', null,
-                      React.createElement('p', { style: { margin: '0.3rem 0 0.3rem', fontSize: '0.78rem', color: '#10b981' } }, '✅ 발견됨'),
-                      React.createElement('div', { style: { display: 'flex', gap: '0.4rem', alignItems: 'center' } },
-                        React.createElement('input', {
-                          type: 'text', value: learningData.phoneLabelBefore || '',
-                          onChange: e => setLearningData({...learningData, phoneLabelBefore: e.target.value}),
-                          placeholder: '앞 라벨',
-                          style: { flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: '#f8fafc' }
-                        }),
-                        React.createElement('span', { style: { color: '#94a3b8', fontSize: '0.8rem', whiteSpace: 'nowrap' } }, '[ 번호 ]'),
-                        React.createElement('input', {
-                          type: 'text', value: learningData.phoneLabelAfter || '',
-                          onChange: e => setLearningData({...learningData, phoneLabelAfter: e.target.value}),
-                          placeholder: '뒤 라벨',
-                          style: { flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: '#f8fafc' }
-                        })
-                      )
-                    );
+                // ── 전화번호/주소 안내 ──
+                React.createElement('div', {
+                  style: { fontSize: '0.8rem', color: '#64748b', background: '#f1f5f9', padding: '0.6rem 0.8rem', borderRadius: '6px', marginBottom: '1rem' }
+                },
+                  React.createElement('p', { style: { marginBottom: '0.3rem' } }, '📞 전화번호: 수취인 확인 후 프리셋 뒷자리 대조 → 일치하면 프리셋 사용'),
+                  React.createElement('p', { style: { marginBottom: learningData.receiver ? '0.3rem' : 0 } }, '📍 주소: 수취인 확인 후 유사도 40% 이상이면 프리셋 사용'),
+                  learningData.receiver && (() => {
+                    const preset = PRESETS[learningData.receiver] || {};
+                    if (!preset.address) return null;
+                    const rawAddr = learningData.address || '';
+                    const addrSim = (a, b) => {
+                      if (!a || !b) return 0;
+                      const sa = new Set(a.replace(/\s/g,'').split(''));
+                      const sb = new Set(b.replace(/\s/g,'').split(''));
+                      const inter = [...sa].filter(c => sb.has(c)).length;
+                      return inter / new Set([...sa,...sb]).size;
+                    };
+                    const sim = addrSim(rawAddr, preset.address);
+                    return React.createElement('p', {
+                      style: { color: sim >= 0.4 ? '#10b981' : '#f59e0b', fontWeight: '600' }
+                    }, `주소 유사도: ${(sim*100).toFixed(0)}% → ${sim >= 0.4 ? '프리셋 사용' : '원문 사용'}`);
                   })()
-                ),
-
-                // ── 주소 ──
-                React.createElement('div', { style: { marginBottom: '1.5rem' } },
-                  React.createElement('label', {
-                    style: { display: 'block', fontWeight: '600', marginBottom: '0.4rem', fontSize: '0.9rem' }
-                  }, '📍 주소'),
-                  React.createElement('input', {
-                    type: 'text',
-                    value: learningData.address,
-                    onChange: (e) => {
-                      const v = e.target.value;
-                      const { before, after } = extractLabels(learningData.rawText, v);
-                      setLearningData({...learningData, address: v, addressLabelBefore: before, addressLabelAfter: after});
-                    },
-                    placeholder: '배송지 주소 일부 입력',
-                    style: {
-                      width: '100%', padding: '0.65rem',
-                      border: !learningData.address ? '1px solid #cbd5e1'
-                        : learningData.rawText.includes(learningData.address) ? '2px solid #10b981' : '2px solid #f59e0b',
-                      borderRadius: '6px', fontSize: '1rem', boxSizing: 'border-box'
-                    }
-                  }),
-                  learningData.address && learningData.rawText.includes(learningData.address) &&
-                  React.createElement('div', null,
-                    React.createElement('p', { style: { margin: '0.3rem 0 0.3rem', fontSize: '0.78rem', color: '#10b981' } }, '✅ 발견됨'),
-                    React.createElement('div', { style: { display: 'flex', gap: '0.4rem', alignItems: 'center' } },
-                      React.createElement('input', {
-                        type: 'text', value: learningData.addressLabelBefore || '',
-                        onChange: e => setLearningData({...learningData, addressLabelBefore: e.target.value}),
-                        placeholder: '앞 라벨',
-                        style: { flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: '#f8fafc' }
-                      }),
-                      React.createElement('span', { style: { color: '#94a3b8', fontSize: '0.8rem', whiteSpace: 'nowrap' } }, '[ 주소 ]'),
-                      React.createElement('input', {
-                        type: 'text', value: learningData.addressLabelAfter || '',
-                        onChange: e => setLearningData({...learningData, addressLabelAfter: e.target.value}),
-                        placeholder: '뒤 라벨',
-                        style: { flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: '#f8fafc' }
-                      })
-                    )
-                  ),
-                  learningData.address && !learningData.rawText.includes(learningData.address) &&
-                  React.createElement('p', { style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#f59e0b' } },
-                    '⚠️ 텍스트에서 찾을 수 없어요')
                 ),
 
                 // ── 버튼 ──
@@ -4118,12 +4058,9 @@ return {
                       const receiverPattern = extractPattern(learningData.rawText, learningData.receiver, 'receiver');
                       // 라벨명 추출 (샘플용 - 패턴에서 앞부분만)
                       const getLabel = (pattern) => pattern ? pattern.replace(/[\\\[\]()?+*{}|]/g, '').replace(/\\s\*/g,'').trim() : '';
-                      const phonePattern = (learningData.phoneLabelBefore || learningData.phoneLabelAfter)
-                        ? makePattern(learningData.phoneLabelBefore || '', learningData.phone, learningData.phoneLabelAfter || '', 'phone')
-                        : extractPattern(learningData.rawText, learningData.phone, 'phone');
-                      const addressPattern = (learningData.addressLabelBefore || learningData.addressLabelAfter)
-                        ? makePattern(learningData.addressLabelBefore || '', learningData.address, learningData.addressLabelAfter || '', 'address')
-                        : extractPattern(learningData.rawText, learningData.address, 'address');
+                      // 전화번호/주소는 패턴 저장 안 함 - 프리셋에서 가져옴
+                      const phonePattern = '';
+                      const addressPattern = '';
                       const ok = await saveSiteSample(
                         learningData.site,
                         learningData.rawText,
