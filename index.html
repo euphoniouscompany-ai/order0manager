@@ -4053,20 +4053,16 @@ return {
                     React.createElement('p', { style: { fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem', marginTop: '0.3rem' } }, '패턴 생성:'),
                     React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' } },
                       [
-                        { label: '현재줄 무시→다음줄', pattern: (before) => (before || '앵커') + String.raw`[^
-]*
-([^
-]+)` },
-                        { label: '탭→값 (탭문자)', pattern: (before) => (before || '앵커') + String.raw`	([^	
-]+)` },
-                        { label: '공백 후 값', pattern: (before) => (before || '앵커') + String.raw`\s*([^
-]+)` },
+                        { label: '현재줄 무시→다음줄', suffix: '[^N]*N([^N]+)' },
+                        { label: '탭→값 (탭문자)', suffix: 'T([^TN]+)' },
+                        { label: '공백 후 값', suffix: 'S*([^N]+)' },
                       ].map((btn, i) =>
                         React.createElement('button', {
                           key: i,
                           onClick: () => {
                             const before = (learningData.addressLabelBefore || '').trim();
-                            const pattern = btn.pattern(before);
+                            const suffix = btn.suffix.replace(/N/g,'\n').replace(/T/g,'\t').replace(/S/g,'\s');
+                            const pattern = (before || '') + suffix;
                             setLearningData({...learningData, addressDirectPattern: pattern});
                           },
                           style: { padding: '0.25rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', cursor: 'pointer', fontSize: '0.75rem' }
