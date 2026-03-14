@@ -2134,13 +2134,44 @@ return {
         }
 
         try {
+          // 저장 전 기존 주문번호 조회 (GET JSONP)
+          let existingOrderNums = new Set();
+          try {
+            const cbName = 'cb_ordercheck_' + Date.now();
+            const recentData = await new Promise((resolve, reject) => {
+              const timeout = setTimeout(() => { delete window[cbName]; reject(new Error('timeout')); }, 5000);
+              window[cbName] = (data) => { clearTimeout(timeout); delete window[cbName]; resolve(data); };
+              const script = document.createElement('script');
+              script.src = APPS_SCRIPT_URL + '?action=getRecentOrderNumbers&callback=' + cbName;
+              script.onerror = () => { clearTimeout(timeout); reject(new Error('load failed')); };
+              document.body.appendChild(script);
+            });
+            if (recentData.success) recentData.orderNumbers.forEach(n => existingOrderNums.add(n));
+          } catch(e) { console.warn('주문번호 조회 실패, 중복 체크 없이 진행:', e); }
+
+          // 중복 제거
+          const filteredData = sheetsData.filter(o => {
+            if (!o.orderNumber) return true;
+            if (existingOrderNums.has(o.orderNumber.toString().trim())) {
+              console.log('중복 주문번호 제외:', o.orderNumber);
+              return false;
+            }
+            return true;
+          });
+
+          if (filteredData.length === 0) {
+            alert('⚠️ 모두 중복된 주문번호입니다. 저장하지 않습니다.');
+            return;
+          }
+          const skipped = sheetsData.length - filteredData.length;
+
           await fetch(APPS_SCRIPT_URL, {
             method: 'POST',
-            body: JSON.stringify({ orders: sheetsData }),
+            body: JSON.stringify({ orders: filteredData }),
             mode: 'no-cors'
           });
           
-          alert(`✅ ${sheetsData.length}개 주문이 구글 시트에 저장되었습니다!`);
+          alert(`✅ ${filteredData.length}개 주문이 구글 시트에 저장되었습니다!` + (skipped > 0 ? `\n(중복 ${skipped}개 제외)` : ''));
           
         } catch (error) {
           console.error('저장 오류:', error);
