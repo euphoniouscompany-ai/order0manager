@@ -706,18 +706,18 @@ const loadConfigFromSheet = async (overrideUrl) => {
       if (!targetValue) return '';
       let searchValue = targetValue;
 
-      // 전화번호: 숫자 패턴으로 바로 반환
+      // 전화번호: 숫자 패턴으로 바로 반환, 마스킹이면 저장 안 함
       if (fieldType === 'phone') {
         const digits = targetValue.replace(/[^\d]/g, '');
         if (digits.length >= 10) {
           const digitPattern = digits.split('').join('[\\s\\-]?');
           return `(${digitPattern})`;
         }
-        return ''; // 마스킹된 전화번호는 패턴 저장 안 함
+        return '';
       }
 
-      // 금액 100 미만은 패턴으로 인정하지 않음 (50ml 등 방지)
-      if (fieldType === 'price' && parseInt(targetValue.replace(/[^\d]/g, '')) < 100) return '';
+      // 금액 1000 미만은 제외 (50ml, 단위 숫자 방지)
+      if (fieldType === 'price' && parseInt(targetValue.replace(/[^\d]/g, '')) < 1000) return '';
 
       // 금액 콤마 처리: 17900 → 원문의 17,900 찾기
       if (fieldType === 'price') {
@@ -727,10 +727,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         else if (fullText.includes(digits)) searchValue = digits;
       }
 
-      if (!fullText.includes(searchValue)) {
-        console.warn(`⚠️ "${targetValue}" 원문에서 찾을 수 없음`);
-        return '';
-      }
+      if (!fullText.includes(searchValue)) return '';
 
       const index = fullText.indexOf(searchValue);
       const lineStart = fullText.lastIndexOf('\n', index) + 1;
@@ -744,12 +741,12 @@ const loadConfigFromSheet = async (overrideUrl) => {
         if (prevLine && /[가-힣]/.test(prevLine)) before = prevLine + ' ' + before;
       }
 
-      // 라벨: 뒤에서부터 의미있는 한글 단어 (숫자/콜론 제거 후)
-      const trimmedBefore = before.replace(/[:\：\s=0-9.]+$/, '').trim();
+      // 라벨: 숫자/단위/콜론/공백 제거 후 마지막 한글 단어
+      const trimmedBefore = before.replace(/[0-9ml원개lkg가나다라마바사아자차카타파하\s:：=.]+$/gi, '').trim();
       const labelMatches = trimmedBefore.match(/[가-힣]{2,10}/g) || [];
       const label = labelMatches[labelMatches.length - 1] || '';
 
-      console.log(`패턴 추출: "${targetValue}" → 라벨: "${label}"`);
+      console.log(`🎯 패턴 확정: [${label}] → ${searchValue}`);
       if (!label) return '';
 
       // 수취인 특별처리
@@ -778,7 +775,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         return label + '[\\s:\\：=]*([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
       }
 
-      // 주문번호/금액: 라벨 뒤 숫자 포함 케이스 방지
+      // 주문번호/금액: 구분자는 공백/콜론만 (Y 같은 영문 소비 방지)
       const valuePattern = fieldType === 'orderNumber' ? '([\\w\\d\\-]+)' : '([\\d,]+)';
       return label + '[\\s:\\：=]*' + valuePattern;
     };
@@ -1661,8 +1658,9 @@ const loadConfigFromSheet = async (overrideUrl) => {
             const minVal = needWon ? 100 : 1000;
             const seenKey = label + ':' + value;
             // ml, l, kg, g, 개 등 단위 라벨 제외
-            const isUnit = /^(ml|l|kg|g|개|ea|mm|cm|m)$/i.test(label.trim());
-            if (!isUnit && num >= minVal && num <= 10000000 && !seen.has(seenKey)) {
+            const isUnit = /^(ml|l|kg|g|개|ea|mm|cm|m|호)$/i.test(label.trim());
+            const minFilter = needWon ? 1000 : 1000; // 1000원 미만 제외
+            if (!isUnit && num >= minFilter && num <= 10000000 && !seen.has(seenKey)) {
               seen.add(seenKey);
               candidates.push({ label, value, rawValue });
             }
