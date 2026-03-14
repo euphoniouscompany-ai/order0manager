@@ -770,17 +770,17 @@ const loadConfigFromSheet = async (overrideUrl) => {
         if (labelPos !== -1 && /\t/.test(fullText.substring(labelPos + label.length, index + 1))) {
           return label + '\\t([^\\t\\n]+)';
         }
-        return label + '[^\\d\\n]{0,5}([가-힣]{2,5})';
+        return label + '[\\s:\\：=]*([가-힣]{2,5})';
       }
 
       // 주소
       if (fieldType === 'address') {
-        return label + '[^\\d\\n]{0,5}([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
+        return label + '[\\s:\\：=]*([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
       }
 
       // 주문번호/금액: 라벨 뒤 숫자 포함 케이스 방지
       const valuePattern = fieldType === 'orderNumber' ? '([\\w\\d\\-]+)' : '([\\d,]+)';
-      return label + '[^\\d\\n]{0,5}' + valuePattern;
+      return label + '[\\s:\\：=]*' + valuePattern;
     };
 
     // 고정텍스트 추출 (숫자/이름/주소 등 변동값 제거, 2자 이상 한글/영문 단어만)
@@ -1686,7 +1686,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         const orderNumberPattern = extractPattern(learningData.rawText, orderNumber, 'orderNumber');
         // 후보 클릭으로 라벨 확보된 경우 바로 패턴 생성, 아니면 extractPattern
         const pricePattern = learningData.priceLabelFromCandidate
-          ? learningData.priceLabelFromCandidate + '[^\\d\\n]{0,5}([\\d,]+)'
+          ? learningData.priceLabelFromCandidate + '[\\s:\\：=]*([\\d,]+)'
           : extractPattern(learningData.rawText, learningData.priceRawValue || price, 'price');
         const receiverPattern = extractPattern(learningData.rawText, receiver, 'receiver');
         console.log('추출된 패턴:', { orderNumberPattern, pricePattern, receiverPattern });
