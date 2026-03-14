@@ -4118,7 +4118,10 @@ return {
                       } else {
                         pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || learningData.price, 'price');
                       }
-                      const receiverPattern = extractPattern(learningData.rawText, learningData.receiver, 'receiver');
+                      const receiverPattern = (learningData.receiverLabelBefore || learningData.receiverLabelAfter)
+                        ? makePattern(learningData.receiverLabelBefore, learningData.receiver, learningData.receiverLabelAfter, 'receiver')
+                        : extractPattern(learningData.rawText, learningData.receiver, 'receiver');
+                      console.log('receiverLabelBefore:', JSON.stringify(learningData.receiverLabelBefore), '/ receiverPattern:', receiverPattern);
                       // 라벨명 추출 (샘플용 - 패턴에서 앞부분만)
                       const getLabel = (pattern) => pattern ? pattern.replace(/[\\\[\]()?+*{}|]/g, '').replace(/\\s\*/g,'').trim() : '';
                       const phonePattern = (learningData.phoneLabelBefore || learningData.phoneLabelAfter)
