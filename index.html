@@ -1350,16 +1350,26 @@ const loadConfigFromSheet = async (overrideUrl) => {
           const priceCandidates = extractPriceCandidates(text);
           const orderNumberCandidates = extractOrderNumberCandidates(text);
           const receiverCandidates = extractReceiverCandidates(text);
+          const _orderNum = parsed.orderNumber || '';
+          const _receiver = parsed.receiver || '';
+          const _onLabels = extractLabels(text, _orderNum);
+          // 수취인 후보 - 앞뒤 라벨이 있는 항목만 (앞없음/뒤없음 아닌 것)
+          const _rcCands = extractLabels(text, _receiver);
+          const _filteredRcCands = _rcCands.candidates.filter(c => c.labelBefore || c.labelAfter);
           setLearningData({
             site: (!siteUnknown) ? parsed.site : '',
             siteIsCustom: false,
             rawText: text,
-            orderNumber: parsed.orderNumber || '',
+            orderNumber: _orderNum,
+            orderNumberLabelBefore: _onLabels.before,
+            orderNumberLabelAfter: _onLabels.after,
             price: parsed.price || '',
             priceCandidates,
             orderNumberCandidates,
-            receiverCandidates,
-            receiver: parsed.receiver || '',
+            receiverCandidates: _filteredRcCands.length > 1 ? _filteredRcCands : [],
+            receiver: _receiver,
+            receiverLabelBefore: _rcCands.before,
+            receiverLabelAfter: _rcCands.after,
             orderIndex: index
           });
           setShowLearningUI(true);
@@ -1374,18 +1384,35 @@ const loadConfigFromSheet = async (overrideUrl) => {
         const orderNumberCandidates = extractOrderNumberCandidates(text);
         const receiverCandidates = extractReceiverCandidates(text);
         const currentOrder = orders[index];
+        const _on = currentOrder.orderNumber || parsed.orderNumber || '';
+        const _rv = currentOrder.parsedReceiver || parsed.receiver || '';
+        const _ph = currentOrder.parsedPhone || parsed.phone || '';
+        const _ad = currentOrder.parsedAddress || parsed.address || '';
+        const _onL = extractLabels(text, _on);
+        const _rvL = extractLabels(text, _rv);
+        const _phL = extractLabels(text, _ph);
+        const _adL = extractLabels(text, _ad);
+        const _filteredRv = _rvL.candidates.filter(c => c.labelBefore || c.labelAfter);
         setLearningData({
           site: currentOrder.site || parsed.site || '',
           siteIsCustom: false,
           rawText: text,
-          orderNumber: currentOrder.orderNumber || parsed.orderNumber || '',
+          orderNumber: _on,
+          orderNumberLabelBefore: _onL.before,
+          orderNumberLabelAfter: _onL.after,
           price: currentOrder.price || parsed.price || '',
           priceCandidates,
           orderNumberCandidates,
-          receiverCandidates,
-          receiver: currentOrder.parsedReceiver || parsed.receiver || '',
-          phone: currentOrder.parsedPhone || parsed.phone || '',
-          address: currentOrder.parsedAddress || parsed.address || '',
+          receiverCandidates: _filteredRv.length > 1 ? _filteredRv : [],
+          receiver: _rv,
+          receiverLabelBefore: _rvL.before,
+          receiverLabelAfter: _rvL.after,
+          phone: _ph,
+          phoneLabelBefore: _phL.before,
+          phoneLabelAfter: _phL.after,
+          address: _ad,
+          addressLabelBefore: _adL.before,
+          addressLabelAfter: _adL.after,
           priceRawValue: '',
           orderIndex: index
         });
