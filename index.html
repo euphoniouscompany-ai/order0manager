@@ -705,107 +705,89 @@ const loadConfigFromSheet = async (overrideUrl) => {
     const extractPattern = (fullText, targetValue, fieldType) => {
       if (!targetValue) return '';
 
-      // 전화번호: 숫자만 추출해서 검색
       let searchValue = targetValue;
+
+      // 전화번호: 숫자 패턴으로 바로 반환
       if (fieldType === 'phone') {
         const digits = targetValue.replace(/[^\d]/g, '');
         if (digits.length >= 10) {
-          // 숫자만으로 패턴 생성 (하이픈/공백 무시)
           const digitPattern = digits.split('').join('[\\s\\-]?');
           return `(${digitPattern})`;
         }
       }
 
+      // 금액/주문번호: 콤마 없는 입력값으로 원문의 실제 형태(17,900) 찾기
+      if (fieldType === 'price' || fieldType === 'orderNumber') {
+        const digits = targetValue.replace(/[^\d\w\-]/g, '');
+        if (digits.length >= 3) {
+          const regexStr = digits.split('').join('[,\\s]*');
+          const match = fullText.match(new RegExp(regexStr));
+          if (match) searchValue = match[0];
+        }
+      }
+
       if (!fullText.includes(searchValue)) {
-        console.warn(`⚠️ "${targetValue}"를 찾을 수 없습니다`);
+        console.warn(`⚠️ "${targetValue}" 원문에서 찾을 수 없음`);
         return '';
       }
-      
+
       const index = fullText.indexOf(searchValue);
-      
-      // 줄바꿈 기준으로 해당 줄에서 앞 텍스트만 사용
       const lineStart = fullText.lastIndexOf('\n', index) + 1;
       let before = fullText.substring(lineStart, index);
-      // before가 비어있거나 숫자/특수문자만 있으면 이전 줄에서 라벨 찾기
+
+      // before가 비어있거나 한글/영문 없으면 이전 줄에서 라벨 찾기
       if (!before.trim() || !/[가-힣a-zA-Z]/.test(before)) {
         const prevLineEnd = lineStart - 1;
         const prevLineStart = prevLineEnd > 0 ? fullText.lastIndexOf('\n', prevLineEnd - 1) + 1 : 0;
         const prevLine = fullText.substring(prevLineStart, prevLineEnd).trim();
         if (prevLine && /[가-힣a-zA-Z]/.test(prevLine)) {
-          before = prevLine;
+          before = prevLine + ' ' + before;
         }
       }
-      
-      console.log(`패턴 추출: "${targetValue}"`);
-      console.log(`  줄 앞: "${before}"`);
-      
-      // 줄바꿈, 탭, 여러 공백 제거
+
       const beforeCleaned = before.replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
-      
-      // 라벨 추출: 콜론/공백 제거 후 한글 단어만 역방향으로 추출
-      // "주문일자 : 2026.03.12주문번호 :" → "주문번호"
-      const trimmedBefore = beforeCleaned.replace(/[:\：\s]+$/, '').trim();
-      const koreanMatches = trimmedBefore.match(/[가-힣]+/g) || [];
+      const trimmedBefore = beforeCleaned.replace(/[:\：\s=]+$/, '').trim();
+
+      // 라벨: 마지막 한글 단어 추출 (숫자/날짜에 붙어있어도 한글만)
+      const koreanMatches = trimmedBefore.match(/[가-힣]{2,10}/g) || [];
       const label = koreanMatches[koreanMatches.length - 1] || '';
-      
-      console.log(`  정제된 앞: "${beforeCleaned}"`);
-      console.log(`  라벨: "${label}"`);
-      
-      // 값 타입별 패턴
-      let valuePattern = '';
-      if (fieldType === 'orderNumber') {
-        valuePattern = '([\\w\\d\\-]+)';
-      } else if (fieldType === 'price') {
-        valuePattern = '([\\d,]+)';
-      } else if (fieldType === 'receiver') {
-        // 수취인: 라벨이 문장형이면 저장 안 함
-        const isBadLabel = !label || label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
+
+      console.log(`패턴 추출: "${targetValue}" → 라벨: "${label}"`);
+
+      if (!label) return '';
+
+      // 수취인 특별처리
+      if (fieldType === 'receiver') {
+        const isBadLabel = label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
         if (isBadLabel) {
-          // 라벨이 없는 경우 — 이전 줄을 라벨로 사용 (테무: "배송지\n이해운+82...")
           const lines = fullText.substring(0, index).split('\n');
           const prevLine = lines[lines.length - 2] ? lines[lines.length - 2].trim() : '';
           const isGoodPrevLine = prevLine && prevLine.length <= 6 && !/[습니다요은는이가을를의]$/.test(prevLine);
-          if (isGoodPrevLine) {
-            // 이전 줄 기반 패턴: "배송지\n이해운"
-            return prevLine + '\\s*\\n([가-힣]{2,5})';
-          }
-          // 이름 뒤에 전화번호/+82 붙는 패턴: "이해운+82"
+          if (isGoodPrevLine) return prevLine + '\\s*\\n([가-힣]{2,5})';
           const afterValue = fullText.substring(index + searchValue.length, index + searchValue.length + 5);
           if (/^[+\s]*82/.test(afterValue) || /^[\s]*0\d/.test(afterValue)) {
             return '([가-힣]{2,5})(?=[+\\s]*82|[\\s]*0\\d)';
           }
-          console.log('  수취인 라벨 부적합 → 패턴 저장 안 함');
           return '';
         }
-        // 실제 구분자 확인 (탭이면 탭, 공백이면 공백)
-        const charAfterLabel = fullText.substring(index - searchValue.length - 1, index - searchValue.length + 1);
-        if (/\t/.test(charAfterLabel) || /\t/.test(fullText.substring(fullText.lastIndexOf(label, index), index + 1))) {
-          // 탭 구분자 → 탭 이후 내용 전체 (가장 정확)
+        // 탭 구분자 확인
+        const labelPos = fullText.lastIndexOf(label, index);
+        if (labelPos !== -1 && /\t/.test(fullText.substring(labelPos + label.length, index + 1))) {
           return label + '\\t([^\\t\\n]+)';
         }
-        valuePattern = '([가-힣]{2,5})';
-      } else if (fieldType === 'address') {
-        valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
-      } else {
-        valuePattern = '([^\\t\\n]+)';
+        return label + '[\\s\\:\\：]*([가-힣]{2,5})';
       }
-      
-      // 구분자: 라벨과 값 사이
-      let separator = '';
-      const lastChar = beforeCleaned.slice(-1);
-      
-      if (lastChar === ':' || lastChar === '：') {
-        separator = '[:\\：]\\s*';
-      } else if (label && /[가-힣a-zA-Z]/.test(lastChar)) {
-        separator = '\\s*';
-      } else {
-        separator = '\\s*';
+
+      // 주소
+      if (fieldType === 'address') {
+        return label + '[\\s\\:\\：=]*([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
       }
-      
-      const pattern = label + separator + valuePattern;
-      console.log(`  최종 패턴: "${pattern}"`);
-      
-      return pattern;
+
+      // 주문번호/금액: 구분자 유연하게
+      let valuePattern = fieldType === 'orderNumber' ? '([\\w\\d\\-]+)' :
+                         fieldType === 'price'       ? '([\\d,]+)' : '([^\\t\\n]+)';
+
+      return label + '[\\s\\:\\：=]*' + valuePattern;
     };
 
     // 고정텍스트 추출 (숫자/이름/주소 등 변동값 제거, 2자 이상 한글/영문 단어만)
