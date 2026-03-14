@@ -3730,7 +3730,7 @@ return {
                       learningData.priceCandidates.map((c, i) =>
                         React.createElement('button', {
                           key: i,
-                          onClick: () => setLearningData({...learningData, price: c.value, priceRawValue: c.rawValue, priceLabelFromCandidate: c.label}),
+                          onClick: () => { console.log('금액 후보 클릭:', c); setLearningData({...learningData, price: c.value, priceRawValue: c.rawValue, priceLabelFromCandidate: c.label}); },
                           style: {
                             padding: '0.3rem 0.7rem',
                             border: learningData.price === c.value ? '2px solid #3b82f6' : '1px solid #cbd5e1',
@@ -3820,8 +3820,16 @@ return {
                     }
                   }),
                   learningData.phone && React.createElement('p', {
-                    style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: learningData.rawText.includes(learningData.phone) ? '#10b981' : '#f59e0b' }
-                  }, learningData.rawText.includes(learningData.phone) ? '✅ 발견됨 — 패턴으로 저장됩니다' : '⚠️ 텍스트에서 찾을 수 없어요')
+                    style: { margin: '0.3rem 0 0', fontSize: '0.78rem', color: '#10b981' }
+                  }, (() => {
+                    const p = learningData.phone;
+                    const raw = learningData.rawText || '';
+                    if (raw.includes(p)) return '✅ 발견됨 — 패턴으로 저장됩니다';
+                    // 마스킹된 경우: 뒷자리 4자리로 확인
+                    const last4 = p.replace(/[^\d]/g,'').slice(-4);
+                    if (last4 && raw.includes(last4)) return '✅ 프리셋에서 가져옴 (마스킹 자동 해제)';
+                    return '';
+                  })())
                 ),
 
                 // ── 주소 ──
