@@ -725,7 +725,16 @@ const loadConfigFromSheet = async (overrideUrl) => {
       
       // 줄바꿈 기준으로 해당 줄에서 앞 텍스트만 사용
       const lineStart = fullText.lastIndexOf('\n', index) + 1;
-      const before = fullText.substring(lineStart, index);
+      let before = fullText.substring(lineStart, index);
+      // before가 비어있거나 숫자/특수문자만 있으면 이전 줄에서 라벨 찾기
+      if (!before.trim() || !/[가-힣a-zA-Z]/.test(before)) {
+        const prevLineEnd = lineStart - 1;
+        const prevLineStart = prevLineEnd > 0 ? fullText.lastIndexOf('\n', prevLineEnd - 1) + 1 : 0;
+        const prevLine = fullText.substring(prevLineStart, prevLineEnd).trim();
+        if (prevLine && /[가-힣a-zA-Z]/.test(prevLine)) {
+          before = prevLine;
+        }
+      }
       
       console.log(`패턴 추출: "${targetValue}"`);
       console.log(`  줄 앞: "${before}"`);
@@ -733,9 +742,11 @@ const loadConfigFromSheet = async (overrideUrl) => {
       // 줄바꿈, 탭, 여러 공백 제거
       const beforeCleaned = before.replace(/[\n\t]/g, ' ').replace(/\s+/g, ' ').trim();
       
-      // 마지막 단어만 추출
-      const words = beforeCleaned.split(' ');
-      const label = words[words.length - 1] || '';
+      // 라벨 추출: 콜론/공백 제거 후 한글 단어만 역방향으로 추출
+      // "주문일자 : 2026.03.12주문번호 :" → "주문번호"
+      const trimmedBefore = beforeCleaned.replace(/[:\：\s]+$/, '').trim();
+      const koreanMatches = trimmedBefore.match(/[가-힣]+/g) || [];
+      const label = koreanMatches[koreanMatches.length - 1] || '';
       
       console.log(`  정제된 앞: "${beforeCleaned}"`);
       console.log(`  라벨: "${label}"`);
