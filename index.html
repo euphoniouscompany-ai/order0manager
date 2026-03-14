@@ -3925,7 +3925,13 @@ return {
                       }
                       // 라벨 추출 (패턴용)
                       const orderNumberPattern = extractPattern(learningData.rawText, learningData.orderNumber, 'orderNumber');
-                      const pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || learningData.price, 'price');
+                      let pricePattern = '';
+                      if (learningData.priceLabelFromCandidate) {
+                        const safeLabel = learningData.priceLabelFromCandidate.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        pricePattern = safeLabel + '[\\s:\\：=]*([\\d,]+)';
+                      } else {
+                        pricePattern = extractPattern(learningData.rawText, learningData.priceRawValue || learningData.price, 'price');
+                      }
                       const receiverPattern = extractPattern(learningData.rawText, learningData.receiver, 'receiver');
                       // 라벨명 추출 (샘플용 - 패턴에서 앞부분만)
                       const getLabel = (pattern) => pattern ? pattern.replace(/[\\\[\]()?+*{}|]/g, '').replace(/\\s\*/g,'').trim() : '';
