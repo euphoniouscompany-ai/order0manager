@@ -704,79 +704,65 @@ const loadConfigFromSheet = async (overrideUrl) => {
     // 패턴 자동 추출 함수
     const extractPattern = (fullText, targetValue, fieldType) => {
       if (!targetValue) return '';
-      let searchValue = targetValue;
 
-      // 전화번호: 숫자 패턴으로 바로 반환, 마스킹이면 저장 안 함
+      // 전화번호: 마스킹이면 패턴 저장 안 함
       if (fieldType === 'phone') {
         const digits = targetValue.replace(/[^\d]/g, '');
         if (digits.length >= 10) {
-          const digitPattern = digits.split('').join('[\\s\\-]?');
-          return `(${digitPattern})`;
+          const dp = digits.split('').join('[\\s\\-]?');
+          return `(${dp})`;
         }
         return '';
       }
 
-      // 금액 1000 미만은 제외 (50ml, 단위 숫자 방지)
-      if (fieldType === 'price' && parseInt(targetValue.replace(/[^\d]/g, '')) < 1000) return '';
-
-      // 금액 콤마 처리: 17900 → 원문의 17,900 찾기
+      // 금액: 콤마 없는 입력값으로 원문의 실제 형태 찾기
+      let searchValue = targetValue;
       if (fieldType === 'price') {
         const digits = targetValue.replace(/[^\d]/g, '');
         const withComma = digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, '$1,');
         if (fullText.includes(withComma)) searchValue = withComma;
         else if (fullText.includes(digits)) searchValue = digits;
+        else return '';
       }
 
       if (!fullText.includes(searchValue)) return '';
 
-      const index = fullText.indexOf(searchValue);
-      const lineStart = fullText.lastIndexOf('\n', index) + 1;
-      let before = fullText.substring(lineStart, index);
-
-      // before가 비어있거나 한글 없으면 이전 줄에서 라벨 찾기
-      if (!before.trim() || !/[가-힣]/.test(before)) {
-        const prevLineEnd = lineStart - 1;
-        const prevLineStart = prevLineEnd > 0 ? fullText.lastIndexOf('\n', prevLineEnd - 1) + 1 : 0;
-        const prevLine = fullText.substring(prevLineStart, prevLineEnd).trim();
-        if (prevLine && /[가-힣]/.test(prevLine)) before = prevLine + ' ' + before;
+      // 값이 있는 줄 찾기
+      const lines = fullText.split('\n');
+      let targetLine = '';
+      let beforeValue = '';
+      for (const line of lines) {
+        if (line.includes(searchValue)) {
+          targetLine = line;
+          beforeValue = line.substring(0, line.indexOf(searchValue));
+          break;
+        }
       }
 
-      // 라벨: 숫자/단위/콜론/공백 제거 후 마지막 한글 단어
-      const trimmedBefore = before.replace(/[0-9ml원개lkg가나다라마바사아자차카타파하\s:：=.]+$/gi, '').trim();
-      const labelMatches = trimmedBefore.match(/[가-힣]{2,10}/g) || [];
-      const label = labelMatches[labelMatches.length - 1] || '';
+      if (!beforeValue.trim()) {
+        // 같은 줄에 앞 텍스트 없으면 이전 줄 사용
+        const lineIdx = lines.findIndex(l => l.includes(searchValue));
+        if (lineIdx > 0) beforeValue = lines[lineIdx - 1].trim();
+      }
 
-      console.log(`🎯 패턴 확정: [${label}] → ${searchValue}`);
+      // 앞 텍스트에서 한글 단어만 추출해서 라벨로
+      const cleaned = beforeValue.replace(/[:\：=\s\d.]+$/, '').trim();
+      const korean = cleaned.match(/[가-힣]{2,10}/g) || [];
+      const label = korean[korean.length - 1] || '';
+
       if (!label) return '';
 
-      // 수취인 특별처리
-      if (fieldType === 'receiver') {
-        const isBadLabel = label.length > 5 || /[습니다요은는이가을를의.]$/.test(label);
-        if (isBadLabel) {
-          const lines = fullText.substring(0, index).split('\n');
-          const prevLine = lines[lines.length - 2] ? lines[lines.length - 2].trim() : '';
-          const isGoodPrevLine = prevLine && prevLine.length <= 6 && !/[습니다요은는이가을를의]$/.test(prevLine);
-          if (isGoodPrevLine) return prevLine + '\\s*\\n([가-힣]{2,5})';
-          const afterValue = fullText.substring(index + searchValue.length, index + searchValue.length + 5);
-          if (/^[+\s]*82/.test(afterValue) || /^[\s]*0\d/.test(afterValue)) {
-            return '([가-힣]{2,5})(?=[+\\s]*82|[\\s]*0\\d)';
-          }
-          return '';
-        }
-        const labelPos = fullText.lastIndexOf(label, index);
-        if (labelPos !== -1 && /\t/.test(fullText.substring(labelPos + label.length, index + 1))) {
-          return label + '\\t([^\\t\\n]+)';
-        }
-        return label + '[\\s:\\：=]*([가-힣]{2,5})';
+      // 값 패턴
+      let valuePattern = '([^\\t\\n]+)';
+      if (fieldType === 'orderNumber') valuePattern = '([\\w\\d\\-]+)';
+      else if (fieldType === 'price') valuePattern = '([\\d,]+)';
+      else if (fieldType === 'receiver') {
+        // 탭 구분자면 탭 패턴
+        if (beforeValue.includes('\t')) return label + '\\t([^\\t\\n]+)';
+        valuePattern = '([가-힣]{2,5})';
       }
+      else if (fieldType === 'address') valuePattern = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
 
-      // 주소
-      if (fieldType === 'address') {
-        return label + '[\\s:\\：=]*([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
-      }
-
-      // 주문번호/금액: 구분자는 공백/콜론만 (Y 같은 영문 소비 방지)
-      const valuePattern = fieldType === 'orderNumber' ? '([\\w\\d\\-]+)' : '([\\d,]+)';
       return label + '[\\s:\\：=]*' + valuePattern;
     };
 
