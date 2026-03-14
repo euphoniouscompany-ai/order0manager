@@ -4004,7 +4004,7 @@ return {
                     React.createElement('div', { style: { display: 'flex', gap: '0.4rem', alignItems: 'center', marginTop: '0.3rem' } },
                       React.createElement('input', {
                         type: 'text', value: learningData.addressLabelBefore || '',
-                        onChange: e => setLearningData({...learningData, addressLabelBefore: e.target.value}),
+                        onChange: e => setLearningData({...learningData, addressLabelBefore: e.target.value.replace(/₩/g, '\\')}),
                         placeholder: '앞 앵커',
                         style: { flex: 1, padding: '0.4rem 0.6rem', border: '1px solid #cbd5e1', borderRadius: '6px', fontSize: '0.8rem', background: '#f8fafc' }
                       }),
@@ -4053,9 +4053,14 @@ return {
                     React.createElement('p', { style: { fontSize: '0.75rem', color: '#64748b', marginBottom: '0.3rem', marginTop: '0.3rem' } }, '패턴 생성:'),
                     React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '0.3rem', marginBottom: '0.4rem' } },
                       [
-                        { label: '줄바꿈 후 다음 줄', pattern: (before) => (before || '앵커') + '[^\\n]*\\n([^\\n]+)' },
-                        { label: '탭 후 값', pattern: (before) => (before || '앵커') + '\\t([^\\t\\n]+)' },
-                        { label: '앵커 바로 뒤 값', pattern: (before) => (before || '앵커') + '\\s*([^\\n]+)' },
+                        { label: '현재줄 무시→다음줄', pattern: (before) => (before || '앵커') + String.raw`[^
+]*
+([^
+]+)` },
+                        { label: '탭→값 (탭문자)', pattern: (before) => (before || '앵커') + String.raw`	([^	
+]+)` },
+                        { label: '공백 후 값', pattern: (before) => (before || '앵커') + String.raw`\s*([^
+]+)` },
                       ].map((btn, i) =>
                         React.createElement('button', {
                           key: i,
@@ -4070,7 +4075,7 @@ return {
                     ),
                     React.createElement('input', {
                       type: 'text', value: learningData.addressDirectPattern || '',
-                      onChange: e => setLearningData({...learningData, addressDirectPattern: e.target.value}),
+                      onChange: e => setLearningData({...learningData, addressDirectPattern: e.target.value.replace(/₩/g, '\\')}),
                       placeholder: '생성된 패턴 (수정 가능)',
                       style: { width: '100%', padding: '0.4rem 0.6rem', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '0.8rem', boxSizing: 'border-box', background: '#f8fafc', fontFamily: 'monospace' }
                     })
