@@ -654,7 +654,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
           }
           
           // 2. 기본 목록 설정 (카드, 배송, 리뷰 등)
-          if (config.sites) setSITES(config.sites);
+          // 사이트 목록은 공용 시트에서만 관리 - 개인 시트 config.sites 무시
           if (config.siteIds) setSITE_IDS(config.siteIds);
           if (config.nameIdMappings) setNAME_ID_MAPPINGS(config.nameIdMappings);
           if (config.cards) setCARDS(config.cards);
