@@ -778,8 +778,7 @@ const loadConfigFromSheet = async (overrideUrl) => {
         return label + '[^\\d\\n]{0,5}([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
       }
 
-      // 주문번호/금액: 라벨 뒤 숫자 포함 케이스 방지 [^\d
-]{0,5}
+      // 주문번호/금액: 라벨 뒤 숫자 포함 케이스 방지
       const valuePattern = fieldType === 'orderNumber' ? '([\\w\\d\\-]+)' : '([\\d,]+)';
       return label + '[^\\d\\n]{0,5}' + valuePattern;
     };
