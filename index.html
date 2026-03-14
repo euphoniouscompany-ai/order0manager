@@ -2157,23 +2157,19 @@ const loadConfigFromSheet = async (overrideUrl) => {
 은행 예금주: ${preset.name}
 결제 금액: ${order.price}`;
           } else if (format === 'custom' && customTemplate) {
-            // 커스텀 템플릿 사용
-            return customTemplate
-              .replace(/{site}/g, site)
-              .replace(/{id}/g, personId)
-              .replace(/{orderNumber}/g, order.orderNumber)
-              .replace(/{name}/g, preset.name)
-              .replace(/{receiver}/g, preset.name)
-              .replace(/{phone}/g, phone)
-              .replace(/{address}/g, preset.address)
-              .replace(/{bank}/g, preset.bank)
-              .replace(/{account}/g, account)
-              .replace(/{accountHolder}/g, preset.name)
-              .replace(/{price}/g, order.price)
-              .replace(/{card}/g, order.card)
-              .replace(/{delivery}/g, order.deliveryType)
-              .replace(/{review}/g, order.reviewMethod)
-              .replace(/{reviewFee}/g, reviewFee);
+            // 커스텀 템플릿 사용 - split-join으로 백슬래시/특수문자 깨짐 방지
+            const map = {
+              '{site}': site, '{id}': personId, '{orderNumber}': order.orderNumber,
+              '{name}': preset.name || '', '{receiver}': preset.name || '',
+              '{phone}': phone, '{address}': preset.address || '',
+              '{bank}': preset.bank || '', '{account}': account,
+              '{accountHolder}': preset.name || '', '{price}': order.price || '',
+              '{card}': order.card || '', '{delivery}': order.deliveryType || '',
+              '{review}': order.reviewMethod || '', '{reviewFee}': reviewFee
+            };
+            let result = customTemplate;
+            Object.keys(map).forEach(key => { result = result.split(key).join(map[key]); });
+            return result;
           } else {
             // 값만
             return `${site}
@@ -4061,7 +4057,7 @@ return {
                           key: i,
                           onClick: () => {
                             const before = (learningData.addressLabelBefore || '').trim();
-                            const pattern = (before || '') + btn.suffix;
+                            const pattern = ((before || '') + btn.suffix).replace(/₩/g, '\\');
                             setLearningData({...learningData, addressDirectPattern: pattern});
                           },
                           style: { padding: '0.25rem 0.5rem', border: '1px solid #cbd5e1', borderRadius: '4px', background: '#f1f5f9', cursor: 'pointer', fontSize: '0.75rem' }
