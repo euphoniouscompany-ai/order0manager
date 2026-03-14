@@ -716,15 +716,22 @@ const loadConfigFromSheet = async (overrideUrl) => {
         }
       }
 
-      // 금액/주문번호: 콤마 없는 입력값으로 원문의 실제 형태(17,900) 찾기
-      if (fieldType === 'price' || fieldType === 'orderNumber') {
-        const digits = targetValue.replace(/[^\d\w\-]/g, '');
+      // 금액: 콤마 없는 입력값으로 원문의 실제 형태(17,900) 찾기
+      if (fieldType === 'price') {
+        const digits = targetValue.replace(/[^\d]/g, '');
         if (digits.length >= 3) {
-          const regexStr = digits.split('').join('[,\\s]*');
-          const match = fullText.match(new RegExp(regexStr));
-          if (match) searchValue = match[0];
+          // 숫자 사이에 콤마만 허용, 앞뒤는 숫자 경계
+          const regexStr = digits.replace(/(\d{1,3})(?=(\d{3})+$)/g, '$1,');
+          // 콤마 있는 형태(17,900)와 없는 형태(17900) 둘 다 시도
+          if (fullText.includes(regexStr)) {
+            searchValue = regexStr;
+          } else if (fullText.includes(digits)) {
+            searchValue = digits;
+          }
+          // 그래도 없으면 원본 유지
         }
       }
+      // 주문번호: 그대로 검색 (콤마 변환 불필요)
 
       if (!fullText.includes(searchValue)) {
         console.warn(`⚠️ "${targetValue}" 원문에서 찾을 수 없음`);
@@ -1258,8 +1265,18 @@ const loadConfigFromSheet = async (overrideUrl) => {
             ...editableData[index],
             name: parsed.receiver || preset.name || '',
             receiver: parsed.receiver || preset.name || '',
-            phone: parsed.phone || preset.phone || '',
-            phoneNoHyphen: (parsed.phone || preset.phone || '').replace(/-/g, ''),
+            phone: (() => {
+              // 마스킹된 전화번호(*포함)면 프리셋 우선
+              const p = parsed.phone || '';
+              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 8;
+              return (!isMasked && p) ? p : (preset.phone || p);
+            })(),
+            phoneNoHyphen: (() => {
+              const p = parsed.phone || '';
+              const isMasked = p.includes('*') || p.replace(/[^\d]/g,'').length < 8;
+              const final = (!isMasked && p) ? p : (preset.phone || p);
+              return final.replace(/-/g, '');
+            })(),
             address: parsed.address || preset.address || '',
             orderNumber: parsed.orderNumber || newOrders[index].orderNumber,
             cartNumber: parsed.cartNumber || '',  // 장바구니번호
