@@ -252,8 +252,10 @@
           for (let i = 1; i < m.length; i++) { if (m[i] !== undefined) groups.push(m[i]); }
           if (groups.length === 0) return (m[0] || '').trim();
           if (fieldType !== 'phone') return groups[0].trim();
-          const raw = groups.join('').replace(/[^\d]/g, '');
-          const normalized = raw.startsWith('0') ? raw : '0' + raw;
+          let digits = groups.join('').replace(/[^\d]/g, '');
+          if (digits.startsWith('0082')) digits = digits.slice(4);
+          else if (digits.startsWith('82')) digits = digits.slice(2);
+          const normalized = digits.startsWith('0') ? digits : '0' + digits;
           if (normalized.length === 11) return normalized.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
           if (normalized.length === 10) return normalized.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3');
           return normalized;
