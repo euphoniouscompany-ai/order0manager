@@ -213,18 +213,28 @@
         : line1 + ' ' + line2;
 
       if (!extracted || !extracted.match(/[가-힣]/)) return null;
+      return extracted; // 유사도 판단은 resolveAddress에서 일괄 처리
+    };
 
-      // 프리셋 주소와 유사도 비교
-      if (presetAddress) {
-        const tokenize = s => s.replace(/[()（）,·\d]/g, ' ').split(/\s+/).filter(t => t.length > 1);
-        const et = tokenize(extracted);
-        const pt = tokenize(presetAddress);
-        const matched = et.filter(t => pt.some(p => p.includes(t) || t.includes(p))).length;
-        const score = matched / Math.max(et.length, 1);
-        if (score >= 0.5) return presetAddress; // 유사하면 프리셋 주소 사용 (더 깔끔함)
-      }
-
-      return extracted;
+    // ── 주소 유사도 판단 (단일 진입점) ──────────────────────
+    // parsedAddr: 주문서에서 추출한 주소
+    // presetAddr: 프리셋에 저장된 주소
+    // → 토큰 매칭 60% 이상이면 프리셋 사용 (더 깔끔하고 신뢰도 높음)
+    // → 미달이면 주문서 주소 사용
+    // → parsedAddr 없으면 프리셋 그대로
+    const resolveAddress = (parsedAddr, presetAddr) => {
+      // 추출 실패 → 프리셋 자동 대입 (표시는 UI에서 처리)
+      if (!parsedAddr) return { addr: presetAddr || '', fromPreset: !!presetAddr };
+      if (!presetAddr) return { addr: parsedAddr, fromPreset: false };
+      const tokenize = s => s.replace(/[()（）,·\d]/g, ' ').split(/\s+/).filter(t => t.length > 1);
+      const pt = tokenize(parsedAddr);
+      const ft = tokenize(presetAddr);
+      const matched = pt.filter(t => ft.some(f => f.includes(t) || t.includes(f))).length;
+      const score = matched / Math.max(pt.length, 1);
+      // 60% 이상 유사 → 프리셋(더 깔끔), 미달 → 주문서 주소
+      return score >= 0.6
+        ? { addr: presetAddr, fromPreset: true }
+        : { addr: parsedAddr, fromPreset: false };
     };
 
     // 범용 파싱 함수
@@ -326,10 +336,12 @@
         if (p.phone) result.phone = tryRe(p.phone, 'i', 'phone');
         if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
         if (p.address) result.address = tryRe(p.address, 'i');
-        // 사이트 패턴으로 주소 못 가져온 경우 → 한국 앵커 fallback
-        if (!result.address) {
-          const preset = Object.values(PRESETS).find(pr => pr.name === result.receiver || result.receiver.includes(pr.name));
-          result.address = extractAddressKoreaAnchor(text, preset?.address) || '';
+        // 주소 패턴 결과가 우편번호(숫자 5자리)뿐이거나 비어있으면 한국 앵커 fallback
+        const addrIsPostalOnly = /^\d{5}$/.test((result.address||'').trim());
+        if (!result.address || addrIsPostalOnly) {
+          const koreaAnchorAddr = extractAddressKoreaAnchor(text);
+          if (koreaAnchorAddr) result.address = koreaAnchorAddr;
+          // 유사도 판단은 handlePaste/useEffect의 resolveAddress에서 처리
         }
         // 사이트 패턴으로 감지된 경우 — 패턴 결과만 신뢰, fallback 사용 안 함
         // 패턴이 비어있는 필드만 일반 fallback 허용
@@ -435,13 +447,10 @@
         }
 
         // 한국 앵커 fallback — 위 패턴으로 못 잡은 경우
-        // (테무 등 "우편번호 한국 주소1\n주소2" 구조)
         if (!result.address) {
-          const preset = result.receiver
-            ? Object.values(PRESETS).find(pr => pr.name === result.receiver || result.receiver.includes(pr.name))
-            : null;
-          const koreaAddr = extractAddressKoreaAnchor(text, preset?.address);
+          const koreaAddr = extractAddressKoreaAnchor(text);
           if (koreaAddr) result.address = koreaAddr;
+          // 유사도 판단은 handlePaste/useEffect의 resolveAddress에서 처리
         }
       }
 
@@ -858,15 +867,7 @@
             }
             return parsedPhone || preset.phone || '';
           };
-          const resolveAddr = (parsedAddr) => {
-            if (parsedAddr && preset.address) {
-              const tokenize = s => s.replace(/[()（）,·]/g,' ').split(/\s+/).filter(t=>t.length>0);
-              const pt = tokenize(parsedAddr); const ft = tokenize(preset.address);
-              const matched = pt.filter(t => ft.some(f => f.includes(t)||t.includes(f))).length;
-              if (matched / Math.max(pt.length, 1) >= 0.5) return preset.address;
-            }
-            return parsedAddr || preset.address || '';
-          };
+          const resolveAddr = (parsedAddr) => resolveAddress(parsedAddr, preset.address).addr;
           newED[oi] = {
             name: order.parsedReceiver||preset.name||'', receiver: order.parsedReceiver||preset.name||'',
             phone: resolvePhone(order.parsedPhone), phoneNoHyphen: resolvePhone(order.parsedPhone).replace(/-/g,''),
@@ -919,17 +920,16 @@
           return parsedDigits.slice(-4) === presetDigits.slice(-4) ? (preset.phone||p||'') : (p||'');
         };
         const resolveAddr = (rawAddr) => {
-          if (!matchedPerson || !preset.address) return rawAddr||'';
-          const sa = new Set((rawAddr||'').replace(/\s/g,'').split('')); const sb = new Set(preset.address.replace(/\s/g,'').split(''));
-          const inter = [...sa].filter(c => sb.has(c)).length; const union = new Set([...sa,...sb]).size;
-          return (inter/union) >= 0.4 ? preset.address : (rawAddr || preset.address);
+          const r = resolveAddress(rawAddr, preset.address);
+          return r.addr;
         };
+        const addrFromPreset = (rawAddr) => resolveAddress(rawAddr, preset.address).fromPreset;
         newOrders[index] = {
           ...newOrders[index], rawText:text, site:detectedSite, orderNumber:parsed.orderNumber||newOrders[index].orderNumber,
           cartNumber:parsed.cartNumber||'', price:parsed.price||newOrders[index].price, person:matchedPerson, personId:defaultId,
           card:newOrders[index].card||CARDS[0]||'', deliveryType:newOrders[index].deliveryType||DELIVERY_TYPES[0]||'',
           reviewMethod:newOrders[index].reviewMethod||REVIEW_METHODS[0]||'', reviewFee:newOrders[index].reviewFee||REVIEW_FEES[0]||'',
-          parsedReceiver:parsed.receiver, parsedPhone:resolvePhone(parsed.phone), parsedAddress:resolveAddr(parsed.address),
+          parsedReceiver:parsed.receiver, parsedPhone:resolvePhone(parsed.phone), parsedAddress:resolveAddr(parsed.address), parsedAddressFromPreset:addrFromPreset(parsed.address),
           parsed:parsed.detected, matchType:parsed.matchType==='known'?'known':''
         };
         setOrders(newOrders);
@@ -947,8 +947,10 @@
           }
         }));
         const siteUnknown = !parsed.site || !SITES.includes(parsed.site);
-        const hasPattern = parsed.site && SITE_DATA[parsed.site];
-        const needsLearning = siteUnknown || (!hasPattern && (!parsed.orderNumber || !parsed.price || !parsed.receiver));
+        const hasPattern = !!(parsed.site && SITE_DATA[parsed.site] && SITE_DATA[parsed.site].orderNumber);
+        // 사이트 인식됐고 패턴도 있으면 학습 UI 띄우지 않음
+        // 사이트 모르거나 패턴 없을 때만 학습 UI
+        const needsLearning = siteUnknown || !hasPattern;
         if (needsLearning) {
           const priceCandidates = extractPriceCandidates(text);
           const orderNumberCandidates = extractOrderNumberCandidates(text);
@@ -956,12 +958,17 @@
           const _rv = parsed.receiver || '';
           const _onL = extractLabels(text, _on);
           const _rvL = extractLabels(text, _rv);
+          const _ph2 = parsed.phone||''; const _ad2 = parsed.address||'';
+          const _phL2 = extractLabels(text, _ph2); const _adL2 = extractLabels(text, _ad2);
           setLearningData({
             site: (!siteUnknown)?parsed.site:'', siteIsCustom:false, rawText:text, orderNumber:_on,
             orderNumberLabelBefore:_onL.before, orderNumberLabelAfter:_onL.after,
             price:parsed.price||'', priceCandidates, orderNumberCandidates,
             receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
-            receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after, orderIndex:index
+            receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after,
+            phone:_ph2, phoneLabelBefore:_phL2.before, phoneLabelAfter:_phL2.after,
+            address:_ad2, addressLabelBefore:_adL2.before, addressLabelAfter:_adL2.after,
+            orderIndex:index
           });
           setShowLearningUI(true);
         }
@@ -1293,7 +1300,11 @@
                               React.createElement('option', { value:aFull }, `🏦 ${aFull}`)
                             );
                           }
-                          return React.createElement('input', { key:oi, type:'text', value:editableData[oi]?.[key]||'', onChange:e=>updateEditableData(oi,key,e.target.value), placeholder:`주문${oi+1}`, style:{flex:'1 1 200px',padding:'0.5rem',border:'1px solid #cbd5e1',borderRadius:'6px',fontSize:'0.85rem'} });
+                          const isAddrFromPreset = key==='address' && orders[oi]?.parsedAddressFromPreset;
+                          return React.createElement('div', { key:oi, style:{flex:'1 1 200px',display:'flex',flexDirection:'column',gap:'2px'} },
+                            React.createElement('input', { type:'text', value:editableData[oi]?.[key]||'', onChange:e=>updateEditableData(oi,key,e.target.value), placeholder:`주문${oi+1}`, style:{width:'100%',padding:'0.5rem',border:`1px solid ${isAddrFromPreset?'#f59e0b':'#cbd5e1'}`,borderRadius:'6px',fontSize:'0.85rem',boxSizing:'border-box'} }),
+                            isAddrFromPreset && React.createElement('span', { style:{fontSize:'0.72rem',color:'#f59e0b'} }, '⚠ 추출 실패 — 프리셋 대입됨, 확인 필요')
+                          );
                         })
                       )
                     );
@@ -1320,18 +1331,7 @@
                 React.createElement('p', { style:{color:'#64748b',marginBottom:'1.5rem',fontSize:'0.9rem'} }, '아래 정보를 확인/입력하면 다음 주문부터 자동 인식됩니다.'),
                 React.createElement('div', { style:{marginBottom:'1rem'} },
                   React.createElement('label', { style:{display:'block',fontWeight:'600',marginBottom:'0.4rem',fontSize:'0.9rem'} }, '🏪 사이트'),
-                  React.createElement('div', { style:{display:'flex',gap:'0.5rem',alignItems:'center'} },
-                    !learningData.siteIsCustom
-                      ? React.createElement('select', { value:learningData.site, onChange:e=>{ if(e.target.value==='__custom__') setLearningData({...learningData,site:'',siteIsCustom:true}); else setLearningData({...learningData,site:e.target.value,siteIsCustom:false}); }, style:{flex:1,padding:'0.65rem',border:'2px solid #3b82f6',borderRadius:'6px',fontSize:'1rem',background:'white'} },
-                          React.createElement('option', { value:'' }, '-- 사이트 선택 --'),
-                          SITES.map(s=>React.createElement('option',{key:s,value:s},s)),
-                          React.createElement('option', { value:'__custom__' }, '✏️ 직접 입력...')
-                        )
-                      : React.createElement('div', { style:{display:'flex',gap:'0.5rem',flex:1} },
-                          React.createElement('input', { type:'text', value:learningData.site, onChange:e=>setLearningData({...learningData,site:e.target.value}), placeholder:'새 사이트 이름 입력 (예: 티몬)', autoFocus:true, style:{flex:1,padding:'0.65rem',border:'2px solid #f59e0b',borderRadius:'6px',fontSize:'1rem'} }),
-                          React.createElement('button', { onClick:()=>setLearningData({...learningData,site:'',siteIsCustom:false}), style:{padding:'0.65rem 0.8rem',border:'1px solid #cbd5e1',borderRadius:'6px',background:'#f8fafc',cursor:'pointer',fontSize:'0.8rem',whiteSpace:'nowrap'} }, '← 목록에서')
-                        )
-                  )
+                  React.createElement('input', { type:'text', value:learningData.site, onChange:e=>setLearningData({...learningData,site:e.target.value}), placeholder:'사이트명 입력 (예: 테무, 쿠팡)', style:{width:'100%',padding:'0.65rem',border:'2px solid #3b82f6',borderRadius:'6px',fontSize:'1rem',boxSizing:'border-box'} })
                 ),
                 React.createElement('div', { style:{marginBottom:'1rem'} },
                   React.createElement('label', { style:{display:'block',fontWeight:'600',marginBottom:'0.4rem',fontSize:'0.9rem'} }, '📋 주문번호'),
