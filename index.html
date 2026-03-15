@@ -251,29 +251,20 @@
         }
       }
 
-      // ── Step 2: 주문번호 패턴 단독 매칭 (고유 포맷 = 즉시 확정) ──
-      // 주문번호 패턴이 맞으면 사이트 확정 (포맷이 사이트마다 고유)
-      if (!result.site) {
-        for (const [site, data] of Object.entries(SITE_DATA)) {
-          if (data.orderNumber && tryReScore(data.orderNumber, text)) {
-            result.site = site; result.matchType = 'orderNumber'; break;
-          }
-        }
-      }
-
-      // ── Step 3: 다중 패턴 매칭 점수 (2개 이상 패턴 일치) ──
+      // ── Step 2+3 통합: 다중 패턴 + fixedTexts 종합 점수 ──
+      // 주문번호 단독으로 바로 확정하지 않음 — 여러 사이트 패턴이 겹칠 수 있음
       if (!result.site) {
         let bestSite = '', bestScore = -1;
         Object.entries(SITE_DATA).forEach(([site, data]) => {
           let score = 0;
-          if (tryReScore(data.orderNumber, text))      score += 4;
+          if (tryReScore(data.orderNumber, text))      score += 3;
           if (tryReScore(data.price, text))            score += 3;
           if (tryReScore(data.receiver, text, 'im'))  score += 3;
           if (tryReScore(data.phone, text))            score += 2;
           if (tryReScore(data.address, text))          score += 1;
-          // fixedTexts 중 3개 이상 포함되면 추가 점수
+          // fixedTexts 매칭 — 사이트 고유 문구라 가중치 높게
           const ftMatches = (data.fixedTexts||[]).filter(ft => text.includes(ft)).length;
-          if (ftMatches >= 3) score += ftMatches;
+          score += ftMatches * 2;
           if (score > bestScore) { bestScore = score; bestSite = site; }
         });
         if (bestScore >= 4) { result.site = bestSite; result.matchType = 'pattern'; }
