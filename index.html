@@ -180,22 +180,50 @@
     // ── 주소 유사도 판단 (단일 진입점) ──────────────────────
     // parsedAddr: 주문서에서 추출한 주소
     // presetAddr: 프리셋에 저장된 주소
+    // 주소 노이즈 제거
+    // 주문서 구조: 주소 줄 → 전화번호 줄 → 배송요청 줄 순서가 일반적
+    const cleanAddress = (addr) => {
+      if (!addr) return addr;
+      let s = addr.trim();
+      // 1순위: 줄바꿈 기준으로 줄 분리
+      const lines = s.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length > 1) {
+        // 첫 줄에 주소 키워드(시/구/동/로/길)가 있으면 첫 줄만 사용
+        // 다음 줄이 전화번호면 그 전까지만
+        const addrLine = lines.find(l => /[시구군동로길]/.test(l));
+        if (addrLine) s = addrLine;
+        else s = lines[0]; // 주소 키워드 없어도 첫 줄 사용
+      }
+      // 2순위: 같은 줄 안에 전화번호 패턴 있으면 그 앞까지만
+      s = s.replace(/\s*(010[-\s]?\d{3,4}[-\s]?\d{4}|\+82[-\s]?\d+|0507[-\s]?\d{4}[-\s]?\d{4}).*$/, '');
+      // 3순위: 노이즈 키워드 이후 제거
+      const noiseKeywords = ['배송지 변경', '배송요청사항', '배송시 요구사항', '배송 요청', '결제정보', '보장바구니', '판매자가', '배송안내', '배송을 시작'];
+      for (const kw of noiseKeywords) {
+        const idx = s.indexOf(kw);
+        if (idx > 0) s = s.substring(0, idx);
+      }
+      s = s.replace(/\s*단독\s*$/, '');
+      return s.trim();
+    };
+
+    // 주소 유사도 판단 (단일 진입점)
     // → 토큰 매칭 60% 이상이면 프리셋 사용 (더 깔끔하고 신뢰도 높음)
     // → 미달이면 주문서 주소 사용
     // → parsedAddr 없으면 프리셋 그대로
     const resolveAddress = (parsedAddr, presetAddr) => {
+      const cleaned = cleanAddress(parsedAddr);
       // 추출 실패 → 프리셋 자동 대입 (표시는 UI에서 처리)
-      if (!parsedAddr) return { addr: presetAddr || '', fromPreset: !!presetAddr };
-      if (!presetAddr) return { addr: parsedAddr, fromPreset: false };
+      if (!cleaned) return { addr: presetAddr || '', fromPreset: !!presetAddr };
+      if (!presetAddr) return { addr: cleaned, fromPreset: false };
       const tokenize = s => s.replace(/[()（）,·\d]/g, ' ').split(/\s+/).filter(t => t.length > 1);
-      const pt = tokenize(parsedAddr);
+      const pt = tokenize(cleaned);
       const ft = tokenize(presetAddr);
       const matched = pt.filter(t => ft.some(f => f.includes(t) || t.includes(f))).length;
       const score = matched / Math.max(pt.length, 1);
-      // 60% 이상 유사 → 프리셋(더 깔끔), 미달 → 주문서 주소
+      // 60% 이상 유사 → 프리셋(더 깔끔), 미달 → 정제된 주문서 주소
       return score >= 0.6
         ? { addr: presetAddr, fromPreset: true }
-        : { addr: parsedAddr, fromPreset: false };
+        : { addr: cleaned, fromPreset: false };
     };
 
     // 범용 파싱 함수
