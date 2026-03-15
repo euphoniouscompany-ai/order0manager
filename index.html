@@ -62,11 +62,12 @@
       if (fieldType === 'orderNumber') vp = '([\\w\\d\\-]+)';
       else if (fieldType === 'price') vp = '([\\d,]+)';
       else if (fieldType === 'receiver') vp = '([가-힣]{2,5})';
-      else if (fieldType === 'address') vp = '([가-힣0-9\\s\\-\\(\\)]+?)(?=\\s*\\n|$)';
+      else if (fieldType === 'address') vp = '([^\\n]+)'; // 주소: 줄 끝까지, 뒤 앵커 사용 안 함
       const beforeTrimmed = (labelBefore || '').trimEnd();
       const sep = (labelBefore || '').includes('\t') ? '\\t' : '\\s*';
       const before = beforeTrimmed ? esc(beforeTrimmed) + sep : '';
-      const after = labelAfter ? '\\s*' + esc(labelAfter) : '';
+      // 주소는 뒤 앵커 무시 — 1층, 배송요청사항 등 주소 뒤 내용이 잘리는 문제 방지
+      const after = (fieldType === 'address') ? '' : (labelAfter ? '\\s*' + esc(labelAfter) : '');
       return before + vp + after;
     };
 
@@ -946,7 +947,7 @@
             receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
             receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after,
             phone:_ph2, phoneLabelBefore:_phL2.before, phoneLabelAfter:_phL2.after,
-            address:_ad2, addressLabelBefore:_adL2.before, addressLabelAfter:_adL2.after,
+            address:_ad2, addressLabelBefore:_adL2.before, addressLabelAfter:'', // 주소 뒤 앵커 비움 — 줄 끝까지가 주소
             orderIndex:index
           });
           setShowLearningUI(true);
@@ -970,7 +971,7 @@
           receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
           receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after,
           phone:_ph, phoneLabelBefore:_phL.before, phoneLabelAfter:_phL.after,
-          address:_ad, addressLabelBefore:_adL.before, addressLabelAfter:_adL.after,
+          address:_ad, addressLabelBefore:_adL.before, addressLabelAfter:'', // 주소 뒤 앵커 비움
           priceRawValue:'', orderIndex:index
         });
         setShowLearningUI(true);
@@ -1378,7 +1379,7 @@
                 ),
                 React.createElement('div', { style:{marginBottom:'1.5rem'} },
                   React.createElement('label', { style:{display:'block',fontWeight:'600',marginBottom:'0.4rem',fontSize:'0.9rem'} }, '📍 주소'),
-                  React.createElement('input', { type:'text', value:learningData.address||'', onChange:e=>{ const v=e.target.value; const {before,after}=extractLabels(learningData.rawText,v); setLearningData({...learningData,address:v,addressLabelBefore:before,addressLabelAfter:after,addressDirectPattern:''}); }, placeholder:'주문서에서 주소 일부 붙여넣기', style:{width:'100%',padding:'0.65rem',border:'1px solid #cbd5e1',borderRadius:'6px',fontSize:'1rem',boxSizing:'border-box'} }),
+                  React.createElement('input', { type:'text', value:learningData.address||'', onChange:e=>{ const v=e.target.value; const {before}=extractLabels(learningData.rawText,v); setLearningData({...learningData,address:v,addressLabelBefore:before,addressLabelAfter:'',addressDirectPattern:''}); }, placeholder:'주문서에서 주소 일부 붙여넣기', style:{width:'100%',padding:'0.65rem',border:'1px solid #cbd5e1',borderRadius:'6px',fontSize:'1rem',boxSizing:'border-box'} }),
                   learningData.address && learningData.rawText.includes(learningData.address) &&
                     React.createElement('div', null,
                       React.createElement('div', { style:{display:'flex',gap:'0.4rem',alignItems:'center',marginTop:'0.3rem'} },
@@ -1409,7 +1410,7 @@
                       else{ prPat=extractPattern(learningData.rawText,learningData.priceRawValue||learningData.price,'price'); }
                       const rcPat = (learningData.receiverLabelBefore||learningData.receiverLabelAfter) ? makePattern(learningData.receiverLabelBefore,learningData.receiver,learningData.receiverLabelAfter,'receiver') : extractPattern(learningData.rawText,learningData.receiver,'receiver');
                       const phPat = (learningData.phoneLabelBefore||learningData.phoneLabelAfter) ? makePattern(learningData.phoneLabelBefore||'',learningData.phone,learningData.phoneLabelAfter||'','phone') : extractPattern(learningData.rawText,learningData.phone,'phone');
-                      const adPat = learningData.addressDirectPattern || ((learningData.addressLabelBefore||learningData.addressLabelAfter) ? makePattern(learningData.addressLabelBefore||'',learningData.address,learningData.addressLabelAfter||'','address') : extractPattern(learningData.rawText,learningData.address,'address'));
+                      const adPat = learningData.addressDirectPattern || (learningData.addressLabelBefore ? makePattern(learningData.addressLabelBefore,'',learningData.addressLabelAfter||'','address') : extractPattern(learningData.rawText,learningData.address,'address'));
                       const getLabel = p=>p?p.replace(/[\\\[\]()?+*{}|]/g,'').replace(/\\s\*/g,'').trim():'';
                       const ok=await saveSiteSample(learningData.site,learningData.rawText,getLabel(onPat),getLabel(prPat),getLabel(rcPat),onPat,prPat,rcPat,phPat,adPat);
                       if(ok) setShowLearningUI(false);
