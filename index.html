@@ -185,24 +185,17 @@
     const cleanAddress = (addr) => {
       if (!addr) return addr;
       let s = addr.trim();
-      // 1순위: 줄바꿈 기준으로 줄 분리
+      // 줄바꿈 있으면 주소 키워드 포함된 줄만 사용
       const lines = s.split('\n').map(l => l.trim()).filter(l => l);
       if (lines.length > 1) {
-        // 첫 줄에 주소 키워드(시/구/동/로/길)가 있으면 첫 줄만 사용
-        // 다음 줄이 전화번호면 그 전까지만
         const addrLine = lines.find(l => /[시구군동로길]/.test(l));
-        if (addrLine) s = addrLine;
-        else s = lines[0]; // 주소 키워드 없어도 첫 줄 사용
+        s = addrLine || lines[0];
       }
-      // 2순위: 같은 줄 안에 전화번호 패턴 있으면 그 앞까지만
-      s = s.replace(/\s*(010[-\s]?\d{3,4}[-\s]?\d{4}|\+82[-\s]?\d+|0507[-\s]?\d{4}[-\s]?\d{4}).*$/, '');
-      // 3순위: 노이즈 키워드 이후 제거
-      const noiseKeywords = ['배송지 변경', '배송요청사항', '배송시 요구사항', '배송 요청', '결제정보', '보장바구니', '판매자가', '배송안내', '배송을 시작'];
-      for (const kw of noiseKeywords) {
-        const idx = s.indexOf(kw);
-        if (idx > 0) s = s.substring(0, idx);
-      }
-      s = s.replace(/\s*단독\s*$/, '');
+      // 주소 끝 패턴 이후 잘라내기: N층 / N호 / 단독 / N-N 형식이 나오면 거기서 끝
+      const endPattern = /(\d{1,4}층|\d{1,4}호|단독|\d{1,4}-\d{1,4})/g;
+      let lastEnd = -1, m;
+      while ((m = endPattern.exec(s)) !== null) { lastEnd = m.index + m[0].length; }
+      if (lastEnd > 0) s = s.substring(0, lastEnd);
       return s.trim();
     };
 
