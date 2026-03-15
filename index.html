@@ -191,6 +191,8 @@
         const addrLine = lines.find(l => /[시구군동로길]/.test(l));
         s = addrLine || lines[0];
       }
+      // * 마스킹 이후 제거 (무신사 등 주소 끝 ** 처리)
+      s = s.replace(/\s*\*+.*$/, '');
       // 주소 끝 패턴 이후 잘라내기: N층 / N호 / 단독 / N-N 형식이 나오면 거기서 끝
       const endPattern = /(\d{1,4}층|\d{1,4}호|단독|\d{1,4}-\d{1,4})/g;
       let lastEnd = -1, m;
@@ -906,7 +908,15 @@
         const presetKeys = Object.keys(PRESETS);
         let matchedPerson = newOrders[index].person;
         if (parsed.receiver) {
-          const found = presetKeys.find(n => n.includes(parsed.receiver) || parsed.receiver.includes(n));
+          // 일반 매칭
+          let found = presetKeys.find(n => n.includes(parsed.receiver) || parsed.receiver.includes(n));
+          // 마스킹 매칭: 이*운 → 첫글자+끝글자로 프리셋 비교
+          if (!found && parsed.receiver.includes('*')) {
+            const parts = parsed.receiver.split('*').filter(p => p);
+            const first = parts[0] || '';
+            const last = parts[parts.length-1] || '';
+            found = presetKeys.find(n => n.startsWith(first) && n.endsWith(last) && n.length >= 2);
+          }
           if (found) matchedPerson = found;
         }
         const detectedSite = parsed.site || newOrders[index].site;
