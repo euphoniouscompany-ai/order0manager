@@ -946,11 +946,10 @@
             account:preset.account||'', accountWithHyphen:preset.accountWithHyphen||'', accountHolder:preset.accountHolder||''
           }
         }));
-        const siteUnknown = !parsed.site || !SITES.includes(parsed.site);
+        // 사이트 인식됐고 SITE_DATA에 패턴 있으면 학습 UI 안 띄움
+        // SITES 배열 체크 제거 - SITE_DATA가 진짜 기준
         const hasPattern = !!(parsed.site && SITE_DATA[parsed.site] && SITE_DATA[parsed.site].orderNumber);
-        // 사이트 인식됐고 패턴도 있으면 학습 UI 띄우지 않음
-        // 사이트 모르거나 패턴 없을 때만 학습 UI
-        const needsLearning = siteUnknown || !hasPattern;
+        const needsLearning = !hasPattern;
         if (needsLearning) {
           const priceCandidates = extractPriceCandidates(text);
           const orderNumberCandidates = extractOrderNumberCandidates(text);
@@ -961,7 +960,7 @@
           const _ph2 = parsed.phone||''; const _ad2 = parsed.address||'';
           const _phL2 = extractLabels(text, _ph2); const _adL2 = extractLabels(text, _ad2);
           setLearningData({
-            site: (!siteUnknown)?parsed.site:'', siteIsCustom:false, rawText:text, orderNumber:_on,
+            site: parsed.site||'', siteIsCustom:false, rawText:text, orderNumber:_on,
             orderNumberLabelBefore:_onL.before, orderNumberLabelAfter:_onL.after,
             price:parsed.price||'', priceCandidates, orderNumberCandidates,
             receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
