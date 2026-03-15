@@ -205,18 +205,18 @@
     // → parsedAddr 없으면 프리셋 그대로
     const resolveAddress = (parsedAddr, presetAddr) => {
       const cleaned = cleanAddress(parsedAddr);
-      // 추출 실패 → 프리셋 자동 대입 (표시는 UI에서 처리)
-      if (!cleaned) return { addr: presetAddr || '', fromPreset: !!presetAddr };
-      if (!presetAddr) return { addr: cleaned, fromPreset: false };
+      // 추출 실패 → 프리셋 자동 대입, extractFailed: true 로 UI에 경고 표시
+      if (!cleaned) return { addr: presetAddr || '', fromPreset: !!presetAddr, extractFailed: true };
+      if (!presetAddr) return { addr: cleaned, fromPreset: false, extractFailed: false };
       const tokenize = s => s.replace(/[()（）,·\d]/g, ' ').split(/\s+/).filter(t => t.length > 1);
       const pt = tokenize(cleaned);
       const ft = tokenize(presetAddr);
       const matched = pt.filter(t => ft.some(f => f.includes(t) || t.includes(f))).length;
       const score = matched / Math.max(pt.length, 1);
-      // 60% 이상 유사 → 프리셋(더 깔끔), 미달 → 정제된 주문서 주소
+      // 60% 이상 유사 → 프리셋 사용 (추출 성공), 미달 → 주문서 주소
       return score >= 0.6
-        ? { addr: presetAddr, fromPreset: true }
-        : { addr: cleaned, fromPreset: false };
+        ? { addr: presetAddr, fromPreset: true, extractFailed: false }
+        : { addr: cleaned, fromPreset: false, extractFailed: false };
     };
 
     // 범용 파싱 함수
@@ -925,13 +925,13 @@
           const r = resolveAddress(rawAddr, preset.address);
           return r.addr;
         };
-        const addrFromPreset = (rawAddr) => resolveAddress(rawAddr, preset.address).fromPreset;
+        const addrFromPreset = (rawAddr) => resolveAddress(rawAddr, preset.address).extractFailed;
         newOrders[index] = {
           ...newOrders[index], rawText:text, site:detectedSite, orderNumber:parsed.orderNumber||newOrders[index].orderNumber,
           cartNumber:parsed.cartNumber||'', price:parsed.price||newOrders[index].price, person:matchedPerson, personId:defaultId,
           card:newOrders[index].card||CARDS[0]||'', deliveryType:newOrders[index].deliveryType||DELIVERY_TYPES[0]||'',
           reviewMethod:newOrders[index].reviewMethod||REVIEW_METHODS[0]||'', reviewFee:newOrders[index].reviewFee||REVIEW_FEES[0]||'',
-          parsedReceiver:parsed.receiver, parsedPhone:resolvePhone(parsed.phone), parsedAddress:resolveAddr(parsed.address), parsedAddressFromPreset:addrFromPreset(parsed.address),
+          parsedReceiver:parsed.receiver, parsedPhone:resolvePhone(parsed.phone), parsedAddress:resolveAddr(parsed.address), parsedAddressFromPreset:resolveAddress(parsed.address, preset.address).extractFailed,
           parsed:parsed.detected, matchType:parsed.matchType||''
         };
         setOrders(newOrders);
