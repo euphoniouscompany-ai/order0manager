@@ -944,10 +944,11 @@
             site: parsed.site||'', siteIsCustom:false, rawText:text, orderNumber:_on,
             orderNumberLabelBefore:_onL.before, orderNumberLabelAfter:_onL.after,
             price:parsed.price||'', priceCandidates, orderNumberCandidates,
-            receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
+            // 패턴으로 수취인 추출 성공하면 candidates 경고 안 띄움
+            receiverCandidates: (!hasPattern && _rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1) ? _rvL.candidates.filter(c=>c.labelBefore||c.labelAfter) : [],
             receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after,
             phone:_ph2, phoneLabelBefore:_phL2.before, phoneLabelAfter:_phL2.after,
-            address:_ad2, addressLabelBefore:_adL2.before, addressLabelAfter:'', // 주소 뒤 앵커 비움 — 줄 끝까지가 주소
+            address:_ad2, addressLabelBefore:_adL2.before, addressLabelAfter:'', // 주소 뒤 앵커 비움
             orderIndex:index
           });
           setShowLearningUI(true);
@@ -968,7 +969,7 @@
           site:cur.site||parsed.site||'', siteIsCustom:false, rawText:text, orderNumber:_on,
           orderNumberLabelBefore:_onL.before, orderNumberLabelAfter:_onL.after,
           price:cur.price||parsed.price||'', priceCandidates:extractPriceCandidates(text), orderNumberCandidates:extractOrderNumberCandidates(text),
-          receiverCandidates:_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter).length>1?_rvL.candidates.filter(c=>c.labelBefore||c.labelAfter):[],
+          receiverCandidates:[],  // 수동 수정 시 패턴 이미 있으므로 candidates 경고 안 띄움
           receiver:_rv, receiverLabelBefore:_rvL.before, receiverLabelAfter:_rvL.after,
           phone:_ph, phoneLabelBefore:_phL.before, phoneLabelAfter:_phL.after,
           address:_ad, addressLabelBefore:_adL.before, addressLabelAfter:'', // 주소 뒤 앵커 비움
