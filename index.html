@@ -1076,7 +1076,7 @@
       const sendToExtension = () => {
         if (selectedOrders.length === 0) { alert('⚠️ 출력할 주문을 선택해주세요'); return; }
         
-        // 1. 익스텐션이 기대하는 최신 데이터 구조로 정규화
+        // 익스텐션 규격에 맞게 데이터 정리
         const ordersData = selectedOrders.map(oi => {
           const d = editableData[oi];
           if (!d) return null;
@@ -1096,30 +1096,17 @@
           };
         }).filter(Boolean);
 
-        // 2. 공용 라벨 매핑과 현재 세션의 학습 라벨을 하나로 통합 (중요: 라벨 학습 연동)
+        // 라벨 매핑 데이터 통합
         const finalMappings = { ...sharedLabelMap, ...learnedMappings };
 
-        // 3. 익스텐션 환경 체크 및 데이터 전송
-        const isExtensionContext = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local;
+        // [핵심] 익스텐션 저장소에 직접 접근하지 않고 '메시지'를 던집니다.
+        window.postMessage({
+          type: "ORDER_DATA_TO_EXTENSION",
+          orders: ordersData,
+          mappings: finalMappings
+        }, "*");
 
-        if (isExtensionContext) {
-          // 케이스 A: 이 페이지가 익스텐션 내부에서 실행 중일 때
-          chrome.storage.local.set({ 
-            orders: ordersData, 
-            labelMappings: finalMappings, 
-            currentIndex: 0 
-          }, () => {
-            alert(`✅ ${ordersData.length}개 주문이 익스텐션 저장소에 동기화되었습니다.`);
-          });
-        } else {
-          // 케이스 B: 일반 웹 브라우저 탭에서 실행 중일 때 (postMessage 브릿지 사용)
-          window.postMessage({
-            type: "ORDER_DATA_TO_EXTENSION",
-            orders: ordersData,
-            mappings: finalMappings
-          }, "*");
-          alert(`🚀 전송 신호를 보냈습니다!\n익스텐션 팝업을 열어 데이터를 확인해 주세요.`);
-        }
+        alert(`🚀 전송 신호를 보냈습니다!\n이제 폼 페이지로 가서 익스텐션 팝업을 열어주세요.`);
       };
 
       const S = {
