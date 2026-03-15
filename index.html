@@ -175,46 +175,6 @@
     };
 
     // ═══════════════════════════════════════════════════════════
-    // 주소 추출 — 한국 앵커 기반 (사이트 공통 fallback)
-    //
-    // 동작:
-    //   1. "\d{5} 한국" 패턴으로 우편번호+한국 앵커를 찾는다
-    //   2. 그 뒤 텍스트(line1)와 다음 줄(line2)를 합쳐 주소 조합
-    //   3. line2가 이름/전화번호처럼 보이면 line1만 사용
-    //   4. 수취인 이름이나 전화번호가 주소에 섞이면 제거
-    //
-    // 사이트별 패턴(SITE_DATA)이 있으면 그쪽이 1순위,
-    // 없으면 이 함수가 fallback으로 호출된다.
-    // ═══════════════════════════════════════════════════════════
-    const extractAddressKoreaAnchor = (text, presetAddress) => {
-      const lines = text.split('\n');
-      let anchorLineIdx = -1;
-      let line1 = '', line2 = '';
-
-      for (let i = 0; i < lines.length; i++) {
-        // "12345 한국" 또는 "12345한국" 형태
-        const m = lines[i].match(/(\d{5})\s*한국\s*(.*)/);
-        if (m) {
-          anchorLineIdx = i;
-          line1 = m[2].trim();
-          line2 = (lines[i + 1] || '').trim();
-          break;
-        }
-      }
-
-      if (anchorLineIdx === -1) return null;
-
-      // line2가 이름(2~5자 한글)이거나 전화번호면 제외
-      const looksLikeName  = /^[가-힣]{2,5}$/.test(line2);
-      const looksLikePhone = /^(\+?82[-\s]?|0)\d{1,2}[-.\s]?\d{3,4}[-.\s]?\d{4}$/.test(line2);
-
-      const extracted = (looksLikeName || looksLikePhone || !line2)
-        ? line1
-        : line1 + ' ' + line2;
-
-      if (!extracted || !extracted.match(/[가-힣]/)) return null;
-      return extracted; // 유사도 판단은 resolveAddress에서 일괄 처리
-    };
 
     // ── 주소 유사도 판단 (단일 진입점) ──────────────────────
     // parsedAddr: 주문서에서 추출한 주소
@@ -336,12 +296,6 @@
         if (p.phone) result.phone = tryRe(p.phone, 'i', 'phone');
         if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
         if (p.address) result.address = tryRe(p.address, 'i');
-        // 주소 패턴 결과가 우편번호(숫자 5자리)뿐이거나 비어있으면 한국 앵커 fallback
-        const addrIsPostalOnly = /^\d{5}$/.test((result.address||'').trim());
-        if (!result.address || addrIsPostalOnly) {
-          const koreaAnchorAddr = extractAddressKoreaAnchor(text);
-          if (koreaAnchorAddr) result.address = koreaAnchorAddr;
-        }
         // 장바구니번호 — 사이트 무관, 텍스트에 "장바구니" 키워드 있을 때만 추출
         if (text.includes('장바구니')) {
           const cartM = text.match(/장바구니\s*번호[\s:：]*(\d{8,})/i) || text.match(/장바구니[\s:：]*(\d{8,})/i);
@@ -351,10 +305,6 @@
         result.matchType = 'known';
         if (result.orderNumber && result.price) return result;
         if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
-        if (!result.address) {
-          const koreaAddr = extractAddressKoreaAnchor(text);
-          if (koreaAddr) result.address = koreaAddr;
-        }
         return result;
       }
 
@@ -423,7 +373,7 @@
         ]) { const m = text.match(re); if (m) { result.phone = m[1].replace(/\s/g,'').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3'); break; } }
       }
 
-      // 주소 fallback — 기존 패턴 우선, 안 되면 한국 앵커
+      // 주소 fallback — 패턴 없는 사이트용 일반 패턴들
       if (!result.address) {
         // 기존 패턴들
         for (const re of [
@@ -440,13 +390,6 @@
             addr = addr.trim().split('\t')[0].trim().replace(/\(\d{5}\).*$/g,'').replace(/\s*단독\s*$/g,'').trim();
             if (addr && addr.match(/[가-힣]/)) { result.address = addr; break; }
           }
-        }
-
-        // 한국 앵커 fallback — 위 패턴으로 못 잡은 경우
-        if (!result.address) {
-          const koreaAddr = extractAddressKoreaAnchor(text);
-          if (koreaAddr) result.address = koreaAddr;
-          // 유사도 판단은 handlePaste/useEffect의 resolveAddress에서 처리
         }
       }
 
@@ -805,21 +748,58 @@
       const saveToGoogleSheets = async () => {
         const url = getPersonalUrl();
         if (!url) { alert('⚠️ 사용자를 먼저 선택해주세요.'); return; }
-        const sheetsData = orders.filter(o => o.orderNumber && o.price).map(order => {
-          const d = new Date(commonSettings.transactionDate);
-          return {
-            date: `${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}`,
-            site: order.site === '직접입력' ? (order.customSite||'직접입력') : order.site,
-            talkRoom: order.talkRoomName || commonSettings.talkRoomName,
-            id: order.personId === '직접입력' ? (order.customId||'직접입력') : order.personId,
-            price: order.price,
-            card: order.card || CARDS[0] || '',
-            delivery: order.deliveryType || DELIVERY_TYPES[0] || '',
-            review: order.reviewMethod || REVIEW_METHODS[0] || '',
-            reviewFee: order.reviewFee === '직접입력' ? (order.customFee||'직접입력') : (order.reviewFee||REVIEW_FEES[0]||''),
-            guideline: order.guideline, cartNumber: order.cartNumber||'', orderNumber: order.orderNumber, productUrl: order.productUrl||''
-          };
+        
+        // 주의: filter 때문에 인덱스가 밀리지 않도록 map으로 원본 인덱스를 먼저 묶어줍니다.
+        const sheetsData = orders.map((order, index) => ({ order, index }))
+          .filter(item => item.order.orderNumber && item.order.price)
+          .map(item => {
+            const { order, index } = item;
+            const d = new Date(commonSettings.transactionDate);
+            
+            // ─────────────────────────────────────────────────────────
+            // [추가된 로직] 프리셋과 현재 폼(editableData)의 차이점 추출
+            // ─────────────────────────────────────────────────────────
+            const preset = PRESETS[order.person] || {};
+            const currentData = editableData[index] || {};
+            const overrides = {};
+
+            // 1. 수취인 비교
+            if (currentData.receiver && currentData.receiver !== preset.name) {
+              overrides.receiver = currentData.receiver;
+            }
+            // 2. 전화번호 비교 (숫자만 추출해서 순수하게 비교)
+            const curPhone = (currentData.phone || '').replace(/[^\d]/g, '');
+            const prePhone = (preset.phone || '').replace(/[^\d]/g, '');
+            if (curPhone && curPhone !== prePhone) overrides.phone = currentData.phone;
+            // 3. 주소 비교
+            if (currentData.address && currentData.address !== preset.address) overrides.address = currentData.address;
+            // 4. 계좌 정보 비교
+            if (currentData.bank && currentData.bank !== preset.bank) overrides.bank = currentData.bank;
+            if (currentData.account && currentData.account !== preset.account) overrides.account = currentData.account;
+            if (currentData.accountHolder && currentData.accountHolder !== preset.accountHolder) overrides.accountHolder = currentData.accountHolder;
+
+            // 차이점이 있으면 JSON 문자열로 변환, 없으면 빈 문자열
+            const overridesStr = Object.keys(overrides).length > 0 ? JSON.stringify(overrides) : '';
+            // ─────────────────────────────────────────────────────────
+
+            return {
+              date: `${d.getFullYear()}. ${d.getMonth()+1}. ${d.getDate()}`,
+              site: order.site === '직접입력' ? (order.customSite||'직접입력') : order.site,
+              talkRoom: order.talkRoomName || commonSettings.talkRoomName,
+              id: order.personId === '직접입력' ? (order.customId||'직접입력') : order.personId,
+              price: order.price,
+              card: order.card || CARDS[0] || '',
+              delivery: order.deliveryType || DELIVERY_TYPES[0] || '',
+              review: order.reviewMethod || REVIEW_METHODS[0] || '',
+              reviewFee: order.reviewFee === '직접입력' ? (order.customFee||'직접입력') : (order.reviewFee||REVIEW_FEES[0]||''),
+              guideline: order.guideline, 
+              cartNumber: order.cartNumber||'', 
+              orderNumber: order.orderNumber, 
+              productUrl: order.productUrl||'',
+              overrides: overridesStr // 배열에 예외 데이터 열쇠 추가
+            };
         });
+
         if (sheetsData.length === 0) { alert('⚠️ 저장할 주문이 없습니다.'); return; }
         try {
           let existingNums = new Set();
@@ -835,9 +815,11 @@
             });
             if (recent.success) recent.orderNumbers.forEach(n => existingNums.add(n));
           } catch(e) {}
+          
           const filtered = sheetsData.filter(o => !o.orderNumber || !existingNums.has(o.orderNumber.toString().trim()));
           if (filtered.length === 0) { alert('⚠️ 모두 중복된 주문번호입니다.'); return; }
           const skipped = sheetsData.length - filtered.length;
+          
           await fetch(url, { method:'POST', body:JSON.stringify({ orders: filtered }), mode:'no-cors' });
           alert(`✅ ${filtered.length}개 주문이 구글 시트에 저장되었습니다!` + (skipped > 0 ? `\n(중복 ${skipped}개 제외)` : ''));
         } catch(e) { alert('❌ 저장 중 오류가 발생했습니다.\n\n' + e.message); }
