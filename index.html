@@ -333,14 +333,13 @@
         return result;
       }
 
-      // 무신사 특수 처리 — 마스킹 구조: 주문번호 → 이름 → 주소 → 전화번호 (라벨 없이 줄바꿈)
+      // 무신사 특수 처리
       if (result.site === '무신사' && !result.phone) {
         const phoneM = text.match(/(010[\s-]*[\d*]{4}[\s-]*\d{4})/);
         if (phoneM) result.phone = phoneM[1].replace(/[\s-]/g,'').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
       }
       if (result.site === '무신사' && !result.address) {
-        const addrM = text.match(/([가-힣\s\d]+[시도]\s[가-힣\s\d]+[구군]\s[^
-]+)/);
+        const addrM = text.match(/((?:서울|부산|대구|인천|광주|대전|울산|세종|경기|강원|충북|충남|전북|전남|경북|경남|제주)[^\n]*[구군][^\n]+)/);
         if (addrM) result.address = addrM[1].trim();
       }
 
