@@ -199,7 +199,7 @@
 
     // 범용 파싱 함수
     const parseOrderText = (text, SITE_DATA, PRESETS) => {
-      const result = { site: '', orderNumber: '', price: '', receiver: '', phone: '', address: '', detected: false, matchType: '' };
+      const result = { site: '', orderNumber: '', cartNumber: '', price: '', receiver: '', phone: '', address: '', detected: false, matchType: '' };
 
       // ══════════════════════════════════════════════════════
       // 사이트 감지 — 4단계 순차 적용, 앞 단계에서 확정되면 stop
@@ -296,6 +296,7 @@
         if (p.phone) result.phone = tryRe(p.phone, 'i', 'phone');
         if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
         if (p.address) result.address = tryRe(p.address, 'i');
+        if (p.cartNumber) result.cartNumber = tryRe(p.cartNumber, 'i', 'cartNumber');
         // 장바구니번호 — 사이트 무관, 텍스트에 "장바구니" 키워드 있을 때만 추출
         if (text.includes('장바구니')) {
           const cartM = text.match(/장바구니\s*번호[\s:：]*(\d{8,})/i) || text.match(/장바구니[\s:：]*(\d{8,})/i);
@@ -718,10 +719,11 @@
             site, fixedTexts: encFixedTexts(extractFixedTexts(rawText)),
             orderNumberLabel:onLabel, priceLabel:prLabel, receiverLabel:rcLabel,
             orderNumberPattern:encB64(onPat||''), pricePattern:encB64(prPat||''),
-            receiverPattern:encB64(rcPat||''), phonePattern:encB64(phPat||''), addressPattern:encB64(adPat||'')
+            receiverPattern:encB64(rcPat||''), phonePattern:encB64(phPat||''), addressPattern:encB64(adPat||''),
+            cartNumberPattern:encB64('')
           });
           if (r.success) {
-            setSITE_DATA(prev => ({ ...prev, [site]: { fixedTexts:extractFixedTexts(rawText), orderNumberLabel:onLabel, priceLabel:prLabel, receiverLabel:rcLabel, orderNumber:onPat||'', price:prPat||'', receiver:rcPat||'', phone:phPat||'', address:adPat||'' } }));
+            setSITE_DATA(prev => ({ ...prev, [site]: { fixedTexts:extractFixedTexts(rawText), orderNumberLabel:onLabel, priceLabel:prLabel, receiverLabel:rcLabel, orderNumber:onPat||'', price:prPat||'', receiver:rcPat||'', phone:phPat||'', address:adPat||'', cartNumber:'' } }));
             if (!SITES.includes(site)) setSITES(prev => [...prev, site]);
             await loadSharedConfig(); return true;
           } else { alert(`❌ 샘플 저장 실패: ${r.error}`); return false; }
