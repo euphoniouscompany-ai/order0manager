@@ -930,7 +930,7 @@
           card:newOrders[index].card||CARDS[0]||'', deliveryType:newOrders[index].deliveryType||DELIVERY_TYPES[0]||'',
           reviewMethod:newOrders[index].reviewMethod||REVIEW_METHODS[0]||'', reviewFee:newOrders[index].reviewFee||REVIEW_FEES[0]||'',
           parsedReceiver:parsed.receiver, parsedPhone:resolvePhone(parsed.phone), parsedAddress:resolveAddr(parsed.address), parsedAddressFromPreset:addrFromPreset(parsed.address),
-          parsed:parsed.detected, matchType:parsed.matchType==='known'?'known':''
+          parsed:parsed.detected, matchType:parsed.matchType||''
         };
         setOrders(newOrders);
         setEditableData(prev => ({
@@ -1130,10 +1130,17 @@
                   React.createElement('textarea', { value:order.rawText, onChange:e=>handlePaste(index,e.target.value), placeholder:'쿠팡, 네이버, 옥션 등 주문 페이지에서 복사한 내용을 붙여넣으세요...', style:{width:'100%',minHeight:'100px',padding:'0.75rem',border:'1px solid #cbd5e1',borderRadius:'8px',fontSize:'0.9rem',fontFamily:'inherit',resize:'vertical'} })
                 ),
                 React.createElement('div', { style:{display:'flex',alignItems:'center',gap:'0.5rem',marginBottom:'1rem',flexWrap:'wrap'} },
-                  React.createElement('span', { style:{padding:'0.35rem 0.75rem',borderRadius:'20px',fontSize:'0.8rem',fontWeight:'600',background:order.matchType==='known'?'#dcfce7':'#f1f5f9',color:order.matchType==='known'?'#166534':'#475569',border:`1px solid ${order.matchType==='known'?'#86efac':'#cbd5e1'}`} },
-                    order.matchType==='known'||order.matchType==='domain'||order.matchType==='orderNumber'||order.matchType==='pattern'||order.matchType==='fixed'
-                      ? `✅ ${order.site} — ${order.matchType==='domain'?'도메인':order.matchType==='orderNumber'?'주문번호':order.matchType==='pattern'?'패턴':order.matchType==='fixed'?'유사도':'인식'}`
-                      : order.site?`⚫ ${order.site} — 미인식`:'⚫ 미인식'),
+                  React.createElement('span', { style:{padding:'0.35rem 0.75rem',borderRadius:'20px',fontSize:'0.8rem',fontWeight:'600',
+                    background: order.matchType==='domain'||order.matchType==='orderNumber'||order.matchType==='known'?'#dcfce7':order.matchType==='pattern'||order.matchType==='fixed'?'#fef9c3':'#f1f5f9',
+                    color: order.matchType==='domain'||order.matchType==='orderNumber'||order.matchType==='known'?'#166534':order.matchType==='pattern'||order.matchType==='fixed'?'#854d0e':'#475569',
+                    border: `1px solid ${order.matchType==='domain'||order.matchType==='orderNumber'||order.matchType==='known'?'#86efac':order.matchType==='pattern'||order.matchType==='fixed'?'#fde047':'#cbd5e1'}`} },
+                    order.matchType==='domain' ? `✅ ${order.site} — 도메인 확정`
+                    : order.matchType==='orderNumber' ? `✅ ${order.site} — 주문번호 확정`
+                    : order.matchType==='known' ? `✅ ${order.site} — 패턴 인식`
+                    : order.matchType==='pattern' ? `⚠️ ${order.site} — 패턴 추정`
+                    : order.matchType==='fixed' ? `⚠️ ${order.site} — 유사도 추정`
+                    : order.site ? `⚫ ${order.site} — 미인식`
+                    : '⚫ 미인식'),
                   order.parsed && React.createElement('span', { style:{fontSize:'0.8rem',color:'#64748b'} }, `주문번호: ${(order.orderNumber||'').slice(0,12)} | 금액: ${parseInt(order.price||0).toLocaleString()}원`),
                   order.rawText && React.createElement('button', { onClick:()=>handleLearnOrder(index,order.rawText), style:{marginLeft:'auto',padding:'0.3rem 0.75rem',border:'1px solid #3b82f6',borderRadius:'6px',background:'white',color:'#3b82f6',cursor:'pointer',fontSize:'0.8rem'} }, '✏️ 수동 수정')
                 ),
