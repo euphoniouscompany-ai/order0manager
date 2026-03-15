@@ -333,6 +333,17 @@
         return result;
       }
 
+      // 무신사 특수 처리 — 마스킹 구조: 주문번호 → 이름 → 주소 → 전화번호 (라벨 없이 줄바꿈)
+      if (result.site === '무신사' && !result.phone) {
+        const phoneM = text.match(/(010[\s-]*[\d*]{4}[\s-]*\d{4})/);
+        if (phoneM) result.phone = phoneM[1].replace(/[\s-]/g,'').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3');
+      }
+      if (result.site === '무신사' && !result.address) {
+        const addrM = text.match(/([가-힣\s\d]+[시도]\s[가-힣\s\d]+[구군]\s[^
+]+)/);
+        if (addrM) result.address = addrM[1].trim();
+      }
+
       // 장바구니번호 fallback — 패턴 없을 때도 키워드 있으면 추출
       if (text.includes('장바구니') && !result.cartNumber) {
         const cartM = text.match(/장바구니\s*번호[\s:：]*(\d{8,})/i) || text.match(/장바구니[\s:：]*(\d{8,})/i);
