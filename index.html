@@ -341,31 +341,27 @@
         if (!result.address || addrIsPostalOnly) {
           const koreaAnchorAddr = extractAddressKoreaAnchor(text);
           if (koreaAnchorAddr) result.address = koreaAnchorAddr;
-          // 유사도 판단은 handlePaste/useEffect의 resolveAddress에서 처리
         }
-        // 사이트 패턴으로 감지된 경우 — 패턴 결과만 신뢰, fallback 사용 안 함
-        // 패턴이 비어있는 필드만 일반 fallback 허용
+        // 장바구니번호 — 사이트 무관, 텍스트에 "장바구니" 키워드 있을 때만 추출
+        if (text.includes('장바구니')) {
+          const cartM = text.match(/장바구니\s*번호[\s:：]*(\d{8,})/i) || text.match(/장바구니[\s:：]*(\d{8,})/i);
+          if (cartM) result.cartNumber = cartM[1];
+        }
         result.detected = !!(result.orderNumber || result.price);
         result.matchType = 'known';
-        // 주문번호/가격 둘 다 있으면 완전 파싱 성공
         if (result.orderNumber && result.price) return result;
-        // 하나라도 없으면 학습 필요하지만 잘못된 값으로 덮어쓰지 않음
-        // → 빈 값은 빈 값으로 두고 사용자가 학습 UI에서 확인
         if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
         if (!result.address) {
-          const preset = result.receiver ? Object.values(PRESETS).find(pr => pr.name === result.receiver || result.receiver.includes(pr.name)) : null;
-          const koreaAddr = extractAddressKoreaAnchor(text, preset?.address);
+          const koreaAddr = extractAddressKoreaAnchor(text);
           if (koreaAddr) result.address = koreaAddr;
         }
         return result;
       }
 
-      // 지마켓 특수 처리
-      if (result.site === '지마켓') {
-        const cartM = text.match(/장바구니번호\s*(\d{10,})/i);
-        const orderM = text.match(/주문번호\s*(\d{10,})/i);
+      // 장바구니번호 fallback — 패턴 없을 때도 키워드 있으면 추출
+      if (text.includes('장바구니') && !result.cartNumber) {
+        const cartM = text.match(/장바구니\s*번호[\s:：]*(\d{8,})/i) || text.match(/장바구니[\s:：]*(\d{8,})/i);
         if (cartM) result.cartNumber = cartM[1];
-        if (orderM) result.orderNumber = orderM[1];
       }
 
       // 주문번호 fallback
