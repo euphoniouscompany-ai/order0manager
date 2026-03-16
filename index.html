@@ -880,6 +880,8 @@
             orderNumber: order.orderNumber, personId, price: order.price, site,
             naverId: preset.naverId||'', nickname: preset.nickname||'', bank: preset.bank||'',
             account: preset.account||'', accountWithHyphen: preset.accountWithHyphen||'', accountHolder: preset.accountHolder||'',
+            '__BANK_ACCOUNT_HOLDER__': `${preset.bank||''} ${preset.accountWithHyphen||preset.account||''} ${preset.accountHolder||''}`.trim(),
+            '__BANK_ACCOUNT_HOLDER_NO_HYPHEN__': `${preset.bank||''} ${(preset.account||'').replace(/-/g,'')} ${preset.accountHolder||''}`.trim(),
             card: order.card, deliveryType: order.deliveryType, reviewMethod: order.reviewMethod, reviewFee
           };
         });
