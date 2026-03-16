@@ -1318,7 +1318,15 @@
                         React.createElement('div', { style:{fontWeight:'500',fontSize:'0.9rem',color:isUnknown?'#ef4444':'#475569'} }, field),
                         isUnknown && React.createElement('select', { onChange:e=>{ if(e.target.value) saveLearnedMapping(field, e.target.value); }, style:{fontSize:'0.75rem',padding:'0.25rem',border:'1px solid #fca5a5',borderRadius:'4px',background:'#fef2f2',color:'#991b1b',cursor:'pointer'} },
                           React.createElement('option', { value:'' }, '항목 선택'),
-                          ['name','receiver','orderNumber','personId','nickname','phone','phoneNoHyphen','address','price','site','card','bank','accountWithHyphen','account','accountHolder','deliveryType','reviewMethod','reviewFee'].map(k=>React.createElement('option',{key:k,value:k},k))
+                          [
+                            {key:'name',label:'구매자명'},{key:'receiver',label:'수취인'},{key:'orderNumber',label:'주문번호'},
+                            {key:'personId',label:'아이디'},{key:'nickname',label:'닉네임'},{key:'phone',label:'전화번호'},
+                            {key:'phoneNoHyphen',label:'전화번호(하이픈없음)'},{key:'address',label:'주소'},{key:'price',label:'결제금액'},
+                            {key:'site',label:'사이트'},{key:'card',label:'카드'},{key:'bank',label:'은행명'},
+                            {key:'accountWithHyphen',label:'계좌번호(-포함)'},{key:'account',label:'계좌번호(하이픈없음)'},
+                            {key:'accountHolder',label:'예금주'},{key:'__BANK_ACCOUNT_HOLDER__',label:'은행 계좌번호 예금주'},
+                            {key:'deliveryType',label:'배송형태'},{key:'reviewMethod',label:'리뷰방법'},{key:'reviewFee',label:'립비'}
+                          ].map(({key:k,label})=>React.createElement('option',{key:k,value:k},label))
                         )
                       ),
                       React.createElement('div', { style:{display:'flex',gap:'0.5rem',flex:1,flexWrap:'wrap'} },
