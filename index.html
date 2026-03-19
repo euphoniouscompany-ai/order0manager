@@ -704,7 +704,7 @@
                   const newP = {};
                   c.people.forEach(p => {
                     const siteIds = c.nameIdMappings?.[p.name] || {};
-                    newP[p.name] = { name:p.name, reviewName:p.name.charAt(0)+'*'+p.name.charAt(p.name.length-1), phone:p.phone, address:p.address, coupangId:siteIds['쿠팡']||p.coupangId||'', naverId:siteIds['네이버']||p.naverId||'', nickname:p.nickname||'', bank:p.bank||'', account:p.account||'', accountWithHyphen:p.account||'', accountHolder:p.accountHolder||'' };
+                    newP[p.name] = { name:p.name, reviewName:p.name.charAt(0)+'*'+p.name.charAt(p.name.length-1), phone:p.phone, address:p.address, coupangId:siteIds['쿠팡']||p.coupangId||'', naverId:siteIds['네이버']||p.naverId||'', nickname:p.nickname||'', bank:p.bank||'', account:(p.account||'').replace(/-/g,''), accountWithHyphen:p.account||'', accountHolder:p.accountHolder||'' };
                   });
                   setPRESETS(newP);
                 }
