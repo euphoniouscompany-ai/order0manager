@@ -38,6 +38,17 @@
     // MODULE 2 · Parser — 주문서 텍스트 추출 (pure 함수, 상태 없음)
     // ═══════════════════════════════════════════════════════════
 
+    const normalizeLabel = (label) => {
+      if (!label) return label;
+      // 날짜 제거: 2026. 3. 20 형태
+      label = label.replace(/\d{4}[.년]\s*\d{1,2}[.월]\s*\d{1,2}[일]?\s*/g, '').trim();
+      // 우편번호 변수화: (04305) → (\d{5})
+      label = label.replace(/\(\d{5}\)/g, '(\\d{5})');
+      // [42101] → [\d{5}]
+      label = label.replace(/\[\d{5}\]/g, '[\\d{5}]');
+      return label;
+    };
+
     const extractLabels = (fullText, searchValue) => {
       if (!fullText || !searchValue) return { before: '', after: '', candidates: [] };
       const lines = fullText.split('\n');
@@ -48,7 +59,7 @@
           let before = lines[i].substring(0, idx);
           const after = lines[i].substring(idx + searchValue.length).trim();
           if (!before.trim() && i > 0) before = lines[i - 1].trim();
-          candidates.push({ value: searchValue, labelBefore: before, labelAfter: after, lineIdx: i });
+          candidates.push({ value: searchValue, labelBefore: normalizeLabel(before), labelAfter: after, lineIdx: i });
         }
       }
       if (candidates.length === 0) return { before: '', after: '', candidates: [] };
@@ -704,7 +715,7 @@
                   const newP = {};
                   c.people.forEach(p => {
                     const siteIds = c.nameIdMappings?.[p.name] || {};
-                    newP[p.name] = { name:p.name, reviewName:p.name.charAt(0)+'*'+p.name.charAt(p.name.length-1), phone:p.phone, address:p.address, coupangId:siteIds['쿠팡']||p.coupangId||'', naverId:siteIds['네이버']||p.naverId||'', nickname:p.nickname||'', bank:p.bank||'', account:(p.account||'').replace(/-/g,''), accountWithHyphen:p.account||'', accountHolder:p.accountHolder||'' };
+                    newP[p.name] = { name:p.name, reviewName:p.name.charAt(0)+'*'+p.name.charAt(p.name.length-1), phone:p.phone, address:p.address, coupangId:siteIds['쿠팡']||p.coupangId||'', naverId:siteIds['네이버']||p.naverId||'', nickname:p.nickname||'', bank:p.bank||'', account:p.account||'', accountWithHyphen:p.account||'', accountHolder:p.accountHolder||'' };
                   });
                   setPRESETS(newP);
                 }
