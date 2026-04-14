@@ -320,7 +320,8 @@
         if (p.price) { const v = tryRe(p.price, 'i', 'price'); if (v) result.price = v.replace(/,/g,''); }
         if (p.receiver) result.receiver = tryRe(p.receiver, 'im', 'receiver');
         if (p.phone) result.phone = tryRe(p.phone, 'i', 'phone');
-        if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
+        // 전화번호 fallback (패턴 없을 때): 앞뒤 숫자가 없어야 함 → 주문번호 내 010 오인식 방지
+        if (!result.phone) { const pm = text.match(/(?<![\d])(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})(?![\d])/); if (pm) result.phone = pm[1]; }
         if (p.address) result.address = tryRe(p.address, 'i');
         if (p.cartNumber) result.cartNumber = tryRe(p.cartNumber, 'i', 'cartNumber');
         // 장바구니번호 — 사이트 무관, 텍스트에 "장바구니" 키워드 있을 때만 추출
@@ -331,7 +332,7 @@
         result.detected = !!(result.orderNumber || result.price);
         result.matchType = 'known';
         if (result.orderNumber && result.price) return result;
-        if (!result.phone) { const pm = text.match(/(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})/); if (pm) result.phone = pm[1]; }
+        if (!result.phone) { const pm = text.match(/(?<![\d])(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})(?![\d])/); if (pm) result.phone = pm[1]; }
         return result;
       }
 
@@ -394,6 +395,16 @@
           /([가-힣]{2,5})\s+0\d{1,2}\s\d{3,4}\s\d{4}/,
           /배송지\s*\n([가-힣]{2,5})/,
         ]) { const m = text.match(re); if (m && m[1]) { result.receiver = m[1].trim(); break; } }
+        // 마스킹 이름(이*운 형태) → PRESETS에서 첫/끝 글자 매칭으로 실제 이름 찾기
+        if (!result.receiver) {
+          const maskedM = text.match(/([가-힣]\*[가-힣])/);
+          if (maskedM) {
+            const [first, , last] = maskedM[1];
+            const matched = Object.keys(PRESETS).find(n => n[0] === first && n[n.length-1] === last);
+            if (matched) result.receiver = matched;
+          }
+        }
+        // PRESETS 이름 전체 포함 여부 (실명이 마스킹 없이 텍스트에 있는 경우)
         if (!result.receiver) {
           for (const name of Object.keys(PRESETS)) {
             if (text.includes(name)) { result.receiver = name; break; }
@@ -401,12 +412,11 @@
         }
       }
 
-      // 전화번호 fallback
+      // 전화번호 fallback (앞뒤 숫자 없어야 함 - 주문번호 내 오인식 방지)
       if (!result.phone) {
         for (const re of [
-          /연락처(010[-\s]?[\d\*]{3,4}[-\s]?[\d\*]{4})/i,
-          /연락처\s*(010[-\s]?[\d\*]{4}[-\s]?[\d\*]{4})/i,
-          /(010[-\s]?[\d\*]{4}[-\s]?[\d\*]{4})/
+          /연락처\s*(010[-\s]?[\d\*]{4}[-\s]?[\d\*]{4})(?![\d])/i,
+          /(?<![\d])(010[-\s]?[\d\*]{4}[-\s]?[\d\*]{4})(?![\d])/
         ]) { const m = text.match(re); if (m) { result.phone = m[1].replace(/\s/g,'').replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3'); break; } }
       }
 
