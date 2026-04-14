@@ -893,7 +893,7 @@
           };
           const resolveAddr = (parsedAddr) => resolveAddress(parsedAddr, preset.address).addr;
           newED[oi] = {
-            name: order.parsedReceiver||preset.name||'', receiver: order.parsedReceiver||preset.name||'',
+            name: preset.name||order.parsedReceiver||'', receiver: preset.name||order.parsedReceiver||'',
             phone: resolvePhone(order.parsedPhone), phoneNoHyphen: resolvePhone(order.parsedPhone).replace(/-/g,''),
             address: resolveAddr(order.parsedAddress),
             orderNumber: order.orderNumber, personId, price: order.price, site,
@@ -971,7 +971,7 @@
           ...prev,
           [index]: {
             ...(prev[index]||{}),
-            name:parsed.receiver||preset.name||'', receiver:parsed.receiver||preset.name||'',
+            name:preset.name||parsed.receiver||'', receiver:preset.name||parsed.receiver||'',
             phone:resolvePhone(parsed.phone), phoneNoHyphen:resolvePhone(parsed.phone).replace(/-/g,''),
             address:resolveAddr(parsed.address),
             orderNumber:parsed.orderNumber||newOrders[index].orderNumber, cartNumber:parsed.cartNumber||'',
