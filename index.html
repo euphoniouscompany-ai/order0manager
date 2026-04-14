@@ -331,9 +331,7 @@
         }
         result.detected = !!(result.orderNumber || result.price);
         result.matchType = 'known';
-        if (result.orderNumber && result.price) return result;
-        if (!result.phone) { const pm = text.match(/(?<![\d])(010[\s\-]?[\d\*]{4}[\s\-]?[\d\*]{4})(?![\d])/); if (pm) result.phone = pm[1]; }
-        return result;
+        // 조기 리턴을 제거하여 빈 필드가 있을 경우 하단의 fallback 로직(마스킹 이름 감지 등)을 타게 만듦
       }
 
       // 무신사 특수 처리
